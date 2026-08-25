@@ -3,6 +3,23 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.2.1] — 2026-08-25
+
+Provider coverage + playground groundwork.
+
+### Added
+- **Azure AI Foundry provider** (`azure_foundry`) — calls the `models/chat/completions`
+  REST endpoint with a Bearer token; verified working with `Llama-4-Maverick-17B-128E-Instruct-FP8`
+  and `DeepSeek-V3.2`.
+- **Azure OpenAI native handler** (`azure`) via the official `AzureOpenAI` client.
+- **Current free-model entries**: `google/gemini-2.5-flash`, `groq/qwen/qwen3.6-27b`,
+  `groq/openai/gpt-oss-20b`, `google/gemini-embedding-001`.
+- `examples/03_provider_test.py` — runs all 18 strategies across varied datasets.
+
+### Fixed
+- Google base URL now points at the OpenAI-compatible `/v1beta/openai` endpoint.
+- Removed deprecated `text-embedding-004` (replaced by `gemini-embedding-001`).
+
 ## [0.2.0] — 2026-08-25
 
 Graph + multimodal retrieval, inspired by LightRAG and RAGAnything.

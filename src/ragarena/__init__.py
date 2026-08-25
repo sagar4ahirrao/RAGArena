@@ -35,7 +35,7 @@ from .metrics import METRICS, DEFAULT_METRIC_SETS, MetricResult
 from .index import VectorIndex, TextChunker, chunk_text, MultimodalDocument
 from .engine import evaluate, compare, EvaluationReport, ComparisonResult
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __author__ = "RagArena contributors"
 
 __all__ = [

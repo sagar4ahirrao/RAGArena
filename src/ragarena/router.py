@@ -151,6 +151,10 @@ def completion(
         return _cohere_completion(model, model_name, messages, api_key, temperature, max_tokens)
     if provider == "bedrock":
         return _bedrock_completion(model, model_name, messages, temperature, max_tokens)
+    if provider == "azure":
+        return _azure_completion(model, model_name, messages, api_key, api_base, temperature, max_tokens)
+    if provider == "azure_foundry":
+        return _azure_foundry_completion(model, model_name, messages, api_key, api_base, temperature, max_tokens)
 
     # ── Everything else is OpenAI-compatible (incl. gemini via AI studio) ──
     client = _get_openai_compatible_client(provider, api_key, api_base)
@@ -277,6 +281,71 @@ def _bedrock_completion(model_id, model_name, messages, temperature, max_tokens)
     from .catalog import estimate_cost
     usage.cost_usd = estimate_cost(model_id, pt, ct)
     return ModelResponse(text=text, model=model_id, usage=usage, latency_s=latency)
+
+
+def _azure_completion(model_id, model_name, messages, api_key, api_base, temperature, max_tokens) -> ModelResponse:
+    """Azure OpenAI / Azure AI Foundry via the official AzureOpenAI client."""
+    from openai import AzureOpenAI
+
+    endpoint = (api_base or os.getenv("AZURE_OPENAI_ENDPOINT")
+                or os.getenv("AZURE_ENDPOINT"))
+    if not endpoint:
+        raise RuntimeError("Azure requires AZURE_OPENAI_ENDPOINT (e.g. https://<resource>.services.ai.azure.com)")
+    api_version = (os.getenv("AZURE_OPENAI_API_VERSION")
+                   or os.getenv("AZURE_API_VERSION") or "2024-05-01-preview")
+    key = _resolve_api_key("azure", api_key)
+    if not key:
+        raise RuntimeError("Azure requires AZURE_OPENAI_API_KEY")
+
+    client = AzureOpenAI(api_key=key, azure_endpoint=endpoint, api_version=api_version)
+    t0 = time.perf_counter()
+    resp = client.chat.completions.create(
+        model=model_name, messages=messages,
+        temperature=temperature, max_tokens=max_tokens or 2048,
+    )
+    latency = time.perf_counter() - t0
+    choice = resp.choices[0]
+    u = getattr(resp, "usage", None)
+    pt = getattr(u, "prompt_tokens", 0) or 0
+    ct = getattr(u, "completion_tokens", 0) or 0
+    usage = Usage(pt, ct, pt + ct)
+    usage.cost_usd = estimate_cost(model_id, pt, ct)
+    return ModelResponse(text=choice.message.content or "", model=model_id,
+                         usage=usage, latency_s=latency, finish_reason=choice.finish_reason)
+
+
+def _azure_foundry_completion(model_id, model_name, messages, api_key, api_base, temperature, max_tokens) -> ModelResponse:
+    """Azure AI Foundry 'models/chat/completions' REST endpoint (Bearer token)."""
+    import httpx
+
+    base = api_base or PROVIDERS["azure_foundry"].base_url
+    api_version = os.getenv("AZURE_FOUNDRY_API_VERSION") or "2024-05-01-preview"
+    key = _resolve_api_key("azure_foundry", api_key)
+    if not key:
+        raise RuntimeError("Azure AI Foundry requires AZURE_FOUNDRY_KEY")
+    if not base:
+        raise RuntimeError("Azure AI Foundry requires a base URL")
+    from .catalog import estimate_cost
+
+    url = f"{base.rstrip('/')}/chat/completions?api-version={api_version}"
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    payload = {"model": model_name, "messages": messages,
+               "temperature": temperature, "max_tokens": max_tokens or 2048}
+    t0 = time.perf_counter()
+    resp = httpx.post(url, headers=headers, json=payload, timeout=120)
+    latency = time.perf_counter() - t0
+    if resp.status_code != 200:
+        raise RuntimeError(f"[{model_id}] Azure Foundry request failed: {resp.status_code} - {resp.text[:300]}")
+    data = resp.json()
+    choice = data["choices"][0]
+    text = choice["message"]["content"] or ""
+    u = data.get("usage", {})
+    pt = u.get("prompt_tokens", 0) or 0
+    ct = u.get("completion_tokens", 0) or 0
+    usage = Usage(pt, ct, pt + ct)
+    usage.cost_usd = estimate_cost(model_id, pt, ct)
+    return ModelResponse(text=text, model=model_id, usage=usage, latency_s=latency,
+                         finish_reason=choice.get("finish_reason"))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
