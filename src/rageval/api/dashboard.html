@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAGEval · RAG Strategy & Model Benchmarking</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0b0e14;--panel:#11151f;--panel2:#161b28;--border:#1f2635;
+  --text:#e6e9f0;--muted:#8a93a6;--accent:#6c5ce7;--accent2:#00d2ff;
+  --good:#2ecc71;--bad:#ff4757;--warn:#ffa502;--radius:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--text);font-size:14px}
+.layout{display:flex;height:100vh}
+
+/* ── sidebar ── */
+.sidebar{width:220px;background:var(--panel);border-right:1px solid var(--border);
+  padding:20px 0;display:flex;flex-direction:column}
+.logo{padding:0 20px 24px;font-size:19px;font-weight:800;letter-spacing:-.5px}
+.logo span{background:linear-gradient(90deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.nav{flex:1}
+.nav button{display:flex;width:100%;gap:10px;align-items:center;padding:11px 22px;
+  background:none;border:none;color:var(--muted);cursor:pointer;font-size:13.5px;text-align:left}
+.nav button:hover{color:var(--text);background:var(--panel2)}
+.nav button.active{color:var(--text);background:var(--panel2);
+  border-left:3px solid var(--accent);padding-left:19px}
+.footer-note{padding:16px 20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border)}
+
+/* ── main ── */
+main{flex:1;overflow-y:auto;padding:28px 34px}
+.page{display:none}.page.active{display:block}
+h1{font-size:22px;margin-bottom:4px}
+.sub{color:var(--muted);margin-bottom:24px}
+
+/* cards */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.stat .v{font-size:26px;font-weight:700;margin-top:6px}
+.stat .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* forms */
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.field label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}
+input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--border);
+  border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:90px}
+.btn{background:linear-gradient(90deg,var(--accent),#8b7cf7);color:#fff;border:none;
+  padding:11px 22px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13.5px}
+.btn:hover{opacity:.92}
+.btn.ghost{background:var(--panel2);border:1px solid var(--border);color:var(--text)}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:10.5px;font-weight:600}
+.badge.b-openai{background:#10a37f22;color:#10a37f}
+.badge.b-anthropic{background:#d9775722;color:#d97757}
+.badge.b-google{background:#4285f422;color:#66a3ff}
+.badge.b-groq{background:#f5503622;color:#ff7857}
+.badge.b-mistral{background:#fa520f22;color:#ff7a3d}
+.badge.b-cohere{background:#39594d22;color:#63d0a5}
+.badge.b-voyage{background:#7f5af022;color:#9d85f5}
+.badge.b-jina{background:#00b86b22;color:#00d68f}
+.badge.b-huggingface,.badge.b-ollama{background:#ffb70322;color:#ffc94d}
+.badge.b-deepseek{background:#4d6bfe22;color:#7590ff}
+.badge.b-xai{background:#88888833;color:#ccc}
+.badge.b-together,.badge.b-fireworks,.badge.b-perplexity,.badge.b-bedrock,
+.badge.b-vertex,.badge.b-deepinfra,.badge.b-nvidia_nim{background:#6c5ce722;color:#a29bfe}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+tr:hover td{background:var(--panel2)}
+.num{font-variant-numeric:tabular-nums}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+
+/* misc */
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{background:var(--panel2);border:1px solid var(--border);border-radius:99px;
+  padding:5px 12px;font-size:12px;cursor:pointer}
+.chip.sel{border-color:var(--accent);background:#6c5ce725}
+.spinner{display:inline-block;width:15px;height:15px;border:2px solid #ffffff44;
+  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-3px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+.searchbar{max-width:340px;margin-bottom:14px}
+.mono{font-family:'SF Mono',Consolas,monospace;font-size:12px}
+.answer-box{background:var(--panel2);border-radius:10px;padding:14px;line-height:1.55;margin-top:8px}
+.kv{display:flex;gap:6px;align-items:center}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <div class="sidebar">
+    <div class="logo">⚡ RAG<span>Eval</span></div>
+    <div class="nav" id="nav">
+      <button data-page="dashboard" class="active">📊 Overview</button>
+      <button data-page="run">▶ New Evaluation</button>
+      <button data-page="compare">⚔️ Compare</button>
+      <button data-page="runs">🗂 Runs</button>
+      <button data-page="catalog">🧠 Model Catalog</button>
+    </div>
+    <div class="footer-note">13 strategies · any LLM · any embedding<br>unified provider/model routing</div>
+  </div>
+
+  <main>
+
+    <!-- ══════════ OVERVIEW ══════════ -->
+    <section class="page active" id="page-dashboard">
+      <h1>Overview</h1>
+      <p class="sub">Your RAG evaluation workspace</p>
+      <div class="stat-grid">
+        <div class="card stat"><div class="l">Runs stored</div><div class="v" id="st-runs">–</div></div>
+        <div class="card stat"><div class="l">Chat models</div><div class="v" id="st-chat">–</div></div>
+        <div class="card stat"><div class="l">Embedding models</div><div class="v" id="st-emb">–</div></div>
+        <div class="card stat"><div class="l">Strategies</div><div class="v" id="st-strat">–</div></div>
+      </div>
+      <div class="row2">
+        <div class="card"><h3 style="margin-bottom:14px">Recent runs</h3>
+          <table id="tbl-recent"><thead><tr><th>Run</th><th>Kind</th><th>Config</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="card"><h3 style="margin-bottom:14px">Strategies available</h3>
+          <div class="chip-row" id="strat-chips"></div>
+          <h3 style="margin:18px 0 14px">Metric presets</h3>
+          <div class="chip-row" id="metric-chips"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ NEW RUN ══════════ -->
+    <section class="page" id="page-run">
+      <h1>New evaluation</h1>
+      <p class="sub">Pick a strategy + models, paste your corpus & questions, get scored.</p>
+
+      <div class="form-grid card">
+        <div class="field"><label>Generator model (provider/name)</label>
+          <select id="r-model"></select></div>
+        <div class="field"><label>Embedding model</label>
+          <select id="r-embed"></select></div>
+        <div class="field"><label>Judge model (LLM-as-judge)</label>
+          <select id="r-judge"></select></div>
+        <div class="field"><label>Metric preset</label>
+          <select id="r-metrics">
+            <option value="production">production — faithfulness, relevance, latency, cost</option>
+            <option value="quality">quality — full retrieval+generation quality</option>
+            <option value="quick">quick — hit-rate + latency only</option>
+            <option value="full">full — everything incl. correctness</option>
+          </select></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <label style="color:var(--muted);font-size:12px">Strategy</label>
+        <div class="chip-row" id="r-strategy"></div>
+        <div style="margin-top:10px" class="sub mono" id="r-strat-desc"></div>
+      </div>
+
+      <div class="row2" style="margin-top:14px">
+        <div class="field"><label>Documents (one per line)</label>
+          <textarea id="r-docs" rows="8" placeholder="Paris is the capital of France.&#10;The Eiffel Tower was built in 1889.&#10;..."></textarea></div>
+        <div class="field"><label>Questions (one per line) — prefix with 'Q::' to add reference answer</label>
+          <textarea id="r-questions" rows="8" placeholder="What is the capital of France?::Paris&#10;When was the Eiffel Tower built?::1889"></textarea></div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+        <button class="btn" onclick="submitRun()"><span id="run-btn-txt">▶ Run evaluation</span></button>
+        <span class="sub" id="run-status"></span>
+      </div>
+
+      <div id="run-results" class="hidden" style="margin-top:22px">
+        <h3 style="margin-bottom:12px">Results</h3>
+        <div class="stat-grid" id="rr-stats"></div>
+        <div class="card"><table id="rr-table"><thead></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ══════════ COMPARE ══════════ -->
+    <section class="page" id="page-compare">
+      <h1>Compare strategies × models</h1>
+      <p class="sub">Head-to-head leaderboard across multiple configurations on the same corpus.</p>
+
+      <div class="row2">
+        <div class="field"><label>Documents (one per line)</label>
+          <textarea id="c-docs" rows="7"></textarea></div>
+        <div class="field"><label>Questions (one per line, '::ref' optional)</label>
+          <textarea id="c-questions" rows="7"></textarea></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <label style="color:var(--muted);font-size:12px">Configurations to compare</label>
+        <div id="c-configs" style="display:flex;flex-direction:column;gap:10px;margin-top:8px"></div>
+        <button class="btn ghost" style="margin-top:12px" onclick="addConfig()">+ Add config</button>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+        <button class="btn" onclick="submitCompare()">⚔️ Run comparison</button>
+        <span class="sub" id="cmp-status"></span>
+      </div>
+
+      <div id="cmp-results" class="hidden" style="margin-top:22px">
+        <h3 style="margin-bottom:12px">Leaderboard</h3>
+        <div class="card"><table id="cmp-table"><thead></thead><tbody></tbody></table></div>
+        <div class="row2" style="margin-top:14px">
+          <div class="card"><canvas id="cmp-chart-quality" height="230"></canvas></div>
+          <div class="card"><canvas id="cmp-chart-cost" height="230"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ RUNS ══════════ -->
+    <section class="page" id="page-runs">
+      <h1>Evaluation runs</h1>
+      <p class="sub">Every run executed through this server</p>
+      <div class="card"><table id="tbl-runs"><thead>
+        <tr><th>ID</th><th>Kind</th><th>Config</th><th>Faithfulness</th><th>Relevance</th><th>Cost</th><th></th></tr>
+      </thead><tbody></tbody></table></div>
+      <div id="run-detail" class="hidden" style="margin-top:18px">
+        <div class="card"><h3 id="rd-title"></h3><div id="rd-body" style="margin-top:12px"></div></div>
+      </div>
+    </section>
+
+    <!-- ══════════ CATALOG ══════════ -->
+    <section class="page" id="page-catalog">
+      <h1>Model catalog</h1>
+      <p class="sub" id="cat-counts"></p>
+      <input class="searchbar" id="cat-search" placeholder="Search models…"
+             oninput="renderCatalog()">
+      <div class="chip-row" id="cat-filters" style="margin-bottom:14px"></div>
+      <div class="card"><table id="tbl-catalog"><thead>
+        <tr><th>Model ID</th><th>Type</th><th>Context</th><th>$ In/1M</th><th>$ Out/1M</th><th>Notes</th></tr>
+      </thead><tbody></tbody></table></div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let CATALOG=[], STRATEGIES=[], METRICS_INFO={};
+let catFilter='all';
+
+/* ── nav ── */
+$('nav').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  $('page-'+b.dataset.page).classList.add('active');
+});
+
+async function api(path){const r=await fetch(path);if(!r.ok)throw await r.text();return r.json();}
+
+/* ── init ── */
+(async function init(){
+  const [cat,strats,mets]=await Promise.all([
+    api('/api/catalog'),api('/api/strategies'),api('/api/metrics')]);
+  CATALOG=cat.models; STRATEGIES=strats; METRICS_INFO=mets;
+
+  $('st-chat').textContent=cat.counts.chat;
+  $('st-emb').textContent=cat.counts.embedding;
+  $('st-strat').textContent=strats.length;
+
+  // model selects
+  const chat=CATALOG.filter(m=>m.modality==='chat');
+  const emb=CATALOG.filter(m=>m.modality==='embedding');
+  fillSelect($('r-model'),chat,'openai/gpt-4o-mini');
+  fillSelect($('r-judge'),chat,'openai/gpt-4o-mini');
+  fillSelect($('r-emb'),emb,'openai/text-embedding-3-small');
+
+  // strategy chips
+  $('r-strategy').innerHTML=strats.map((s,i)=>
+    `<span class="chip ${i===0?'sel':''}" data-name="${s.name}">${s.name}</span>`).join('');
+  $('strat-chips').innerHTML=strats.map(s=>`<span class="chip">${s.name}</span>`).join('');
+  $('metric-chips').innerHTML=Object.keys(mets.presets).map(p=>`<span class="chip">${p}</span>`).join('');
+  $('r-strat-desc').textContent=strats[0].description;
+  $('r-strategy').addEventListener('click',e=>{
+    if(!e.target.classList.contains('chip'))return;
+    document.querySelectorAll('#r-strategy .chip').forEach(c=>c.classList.remove('sel'));
+    e.target.classList.add('sel');
+    $('r-strat-desc').textContent=strats.find(s=>s.name===e.target.dataset.name)?.description||'';
+  });
+
+  renderRecent(); renderCatalog();
+})();
+
+function fillSelect(sel,models,defaultVal){
+  sel.innerHTML=models.map(m=>
+    `<option value="${m.id}" ${m.id===defaultVal?'selected':''}>${m.id}</option>`).join('');
+}
+
+/* ── run eval ── */
+async function submitRun(){
+  const btnTxt=$('run-btn-txt');btnTxt.innerHTML='<span class="spinner"></span>Running…';
+  $('run-status').textContent='retrieving → generating → judging…';
+  const qs=$('r-questions').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  const questions=[],refs=[];
+  for(const l of qs){const [q,r]=l.split('::');questions.push(q.trim());refs.push(r?.trim()||null);}
+  const body={
+    questions,
+    documents:$('r-docs').value.split('\n').map(l=>l.trim()).filter(Boolean).map(t=>({text:t})),
+    reference_answers:refs.some(r=>r)?refs:null,
+    strategy:document.querySelector('#r-strategy .sel').dataset.name,
+    model:$('r-model').value,embedding_model:$('r-emb').value,
+    judge_model:$('r-judge').value,metrics:$('r-metrics').value};
+  try{
+    const res=await fetch('/api/evaluate',{method:'POST',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!res.ok)throw new Error((await res.json()).detail||res.statusText);
+    const data=await res.json(); renderSingleResult(data);
+    $('run-status').textContent=`done in ${data.wall_time_s}s`;
+  }catch(err){$('run-status').innerHTML=`<span class="bad">${err.message||err}</span>`;}
+  btnTxt.textContent='▶ Run evaluation';
+}
+
+function renderSingleResult(d){
+  $('run-results').classList.remove('hidden');
+  const agg=d.aggregate;
+  $('rr-stats').innerHTML=['faithfulness','answer_relevance','context_precision','avg_latency_s','total_cost_usd']
+    .filter(k=>agg[k]!==undefined).map(k=>
+      `<div class="card stat"><div class="l">${k.replace(/_/g,' ')}</div>
+       <div class="v ${scoreClass(k,agg[k])}">${fmt(k,agg[k])}</div></div>`).join('');
+
+  const cols=['question','answer'];
+  const metricNames=[...new Set(d.samples.flatMap(s=>Object.keys(s.metrics)))];
+  $('rr-table thead').innerHTML='<tr>'+cols.concat(metricNames,['latency_s'])
+    .map(c=>`<th>${c.replace(/_/g,' ')}</th>`).join('')+'</tr>';
+  $('rr-table tbody').innerHTML=d.samples.map(s=>{
+    let row=cols.map(c=>`<td>${esc(String(s[c]??'')).slice(0,120)}</td>`).join('');
+    row+=metricNames.map(mn=>{
+      const m=s.metrics[mn];
+      return m?`<td class="num">${m.score}${m.details?.reasoning?` <span title="${esc(m.details.reasoning)}">ⓘ</span>`:''}</td>`
+              :'<td class="num">—</td>';}).join('');
+    return row+`<td class="num">${s.latency_s.toFixed(2)}s</td>`;
+  }).join('');
+}
+
+/* ── compare ── */
+function addConfig(){
+  const div=document.createElement('div');
+  div.className='kv';div.style.gap='10px';
+  div.innerHTML=`<select style="flex:1">${STRATEGIES.map(s=>`<option>${s.name}</option>`).join('')}</select>
+    <select style="flex:2" class="cfg-model">${CATALOG.filter(m=>m.modality==='chat')
+      .map(m=>`<option>${m.id}</option>`).join('')}</select>
+    <button class="btn ghost" onclick="this.parentElement.remove()">✕</button>`;
+  $('c-configs').appendChild(div);
+}
+addConfig();
+
+async function submitCompare(){
+  $('cmp-status').innerHTML='<span class="spinner"></span>battle in progress…';
+  const configs=[...document.querySelectorAll('#c-configs > div')].map(d=>({
+    strategy:d.children[0].value,model:d.children[1].value}));
+  const qs=$('c-questions').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  const questions=[],refs=[];
+  for(const l of qs){const [q,r]=l.split('::');questions.push(q.trim());refs.push(r?.trim()||null);}
+  try{
+    const res=await fetch('/api/compare',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        questions,configs,
+        documents:$('c-docs').value.split('\n').map(l=>l.trim()).filter(Boolean).map(t=>({text:t})),
+        reference_answers:refs.some(r=>r)?refs:null})});
+    if(!res.ok)throw new Error((await res.json()).detail||res.statusText);
+    const data=await res.json();renderCompare(data);
+    $('cmp-status').textContent='';
+  }catch(err){$('cmp-status').innerHTML=`<span class="bad">${err.message||err}</span>`;}
+}
+
+let charts={};
+function renderCompare(data){
+  $('cmp-results').classList.remove('hidden');
+  const rows=Object.entries(data.matrix).map(([name,v])=>({config:name,...v}));
+  if(!rows.length)return;
+  const cols=Object.keys(rows[0]);
+  $('cmp-table thead').innerHTML='<tr>'+cols.map(c=>`<th>${c.replace(/_/g,' ')}</th>`).join('')+'</tr>';
+  $('cmp-table tbody').innerHTML=rows.map(r=>'<tr>'+
+    cols.map(c=>`<td class="num">${typeof r[c]==='number'?(c.includes('cost')?'$'+r[c].toFixed(5):r[c]):r[c]}</td>`).join('')+'</tr>').join('');
+
+  const labels=rows.map(r=>r.config);
+  const palette=['#6c5ce7','#00d2ff','#2ecc71','#ffa502','#ff4757','#a29bfe'];
+  const qMetrics=['faithfulness','answer_relevance','context_precision'].filter(m=>rows[0][m]!==undefined);
+  const mkChart=(id,datasets)=>{if(charts[id])charts[id].destroy();
+    charts[id]=new Chart($(id),{type:'bar',data:{labels,datasets},
+      options:{responsive:true,plugins:{legend:{labels:{color:'#8a93a6'}}},
+        scales:{x:{ticks:{color:'#8a93a6'}},y:{ticks:{color:'#8a93a6'},beginAtZero:true}}}})};
+  mkChart('cmp-chart-quality',qMetrics.map((m,i)=>({label:m,data:rows.map(r=>r[m]),
+    backgroundColor:palette[i%palette.length]})));
+  mkChart('cmp-chart-cost',[{label:'total cost ($)',data:rows.map(r=>r.total_cost_usd||0),
+    backgroundColor:'#ffa50288'},{label:'avg latency (s)',data:rows.map(r=>r.avg_latency_s||0),
+    backgroundColor:'#00d2ff66'}]);
+}
+
+/* ── runs list/detail ── */
+async function renderRecent(){
+  try{
+    const runs=await api('/api/runs');
+    $('st-runs').textContent=runs.length;
+    $('tbl-recent tbody').innerHTML=runs.slice(-5).reverse().map(r=>
+      `<tr><td class="mono">${r.run_id}</td><td>${r.kind}</td><td>${r.strategy||''}</td></tr>`).join('')
+      ||'<tr><td colspan="3" style="color:var(--muted)">no runs yet — create one!</td></tr>';
+    $('tbl-runs tbody').innerHTML=runs.map(r=>{
+      const a=r.aggregate||{};
+      return `<tr><td class="mono">${r.run_id}</td><td>${r.kind}</td><td>${r.strategy||'comparison'}</td>
+        <td class="num">${a.faithfulness??'—'}</td><td class="num">${a.answer_relevance??'—'}</td>
+        <td class="num">${a.total_cost_usd!=null?'$'+Number(a.total_cost_usd).toFixed(5):'—'}</td>
+        <td><button class="btn ghost" onclick="viewRun('${r.run_id}')">view</button></td></tr>`;}).join('');
+  }catch(e){}
+}
+
+async function viewRun(id){
+  const d=await api('/api/runs/'+id);
+  $('run-detail').classList.remove('hidden');
+  $('rd-title').textContent=`Run ${id}`;
+  if(d.kind==='comparison'){
+    const rows=Object.entries(d.matrix).map(([n,v])=>({config:n,...v}));
+    const cols=Object.keys(rows[0]||{});
+    $('rd-body').innerHTML=`<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${
+      rows.map(r=>`<tr>${cols.map(c=>`<td class="num">${r[c]}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  }else{
+    $('rd-body').innerHTML=(d.samples||[]).map(s=>`
+      <div style="margin-bottom:16px"><b>${esc(s.question)}</b>
+      <div class="answer-box">${esc(s.answer)}</div>
+      <div style="margin-top:8px" class="mono">${
+        Object.entries(s.metrics).map(([k,m])=>`${k}=${m.score}`).join(' · ')} · ${s.latency_s.toFixed(2)}s</div></div>`).join('');
+  }
+  $('run-detail').scrollIntoView({behavior:'smooth'});
+}
+
+/* ── catalog ── */
+const CAT_FILTERS=['all','chat','embedding','rerank'];
+$('cat-filters').innerHTML=CAT_FILTERS.map(f=>
+  `<span class="chip ${f==='all'?'sel':''}" data-f="${f}">${f}</span>`).join('');
+$('cat-filters').addEventListener('click',e=>{
+  if(!e.target.dataset.f)return;catFilter=e.target.dataset.f;
+  document.querySelectorAll('#cat-filters .chip').forEach(c=>c.classList.toggle('sel',c.dataset.f===catFilter));
+  renderCatalog();});
+
+function renderCatalog(){
+  const q=($('cat-search').value||'').toLowerCase();
+  const provBadge=p=>`<span class="badge b-${p}">${p}</span>`;
+  const rows=CATALOG.filter(m=>(catFilter==='all'||m.modality===catFilter)&&
+    (!q||m.id.toLowerCase().includes(q)||m.description.toLowerCase().includes(q)));
+  $('cat-counts').textContent=`${CATALOG.length} models · ${
+    new Set(CATALOG.map(m=>m.provider)).size} providers`;
+  $('tbl-catalog tbody').innerHTML=rows.map(m=>`<tr>
+    <td>${provBadge(m.provider)} <span class="mono">${m.model_name}</span></td>
+    <td>${m.modality}</td>
+    <td class="num">${m.modality==='chat'?Math.round(m.context_window/1000)+'k':'—'}</td>
+    <td class="num">${m.input_cost?'$'+m.input_cost:'free'}</td>
+    <td class="num">${m.output_cost?'$'+m.output_cost:'—'}</td>
+    <td style="color:var(--muted)">${m.description||''}</td></tr>`).join('');
+}
+
+/* ── helpers ── */
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function scoreClass(k,v){if(k.includes('latency'))return v<3?'good':v<8?'warn':'bad';
+  if(k.includes('cost'))return v<0.01?'good':v<0.05?'warn':'bad';
+  return v>=0.8?'good':v>=0.5?'warn':'bad';}
+function fmt(k,v){if(k.includes('latency'))return v.toFixed(2)+'s';
+  if(k.includes('cost'))return '$'+Number(v).toFixed(5);
+  return typeof v==='number'&&k!=='total_tokens'?v.toFixed(3):v;}
+</script>
+</body>
+</html>
