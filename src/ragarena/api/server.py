@@ -1,4 +1,4 @@
-﻿"""
+"""
 FastAPI serving layer + built-in web dashboard.
 
 Start everything with::
@@ -195,7 +195,7 @@ def get_run(run_id: str):
 
 def start_server(host: str = "0.0.0.0", port: int = 4000, reload: bool = False):
     import uvicorn
-    uvicorn.run("RagArena.api.server:app", host=host, port=port,
+    uvicorn.run("ragarena.api.server:app", host=host, port=port,
                 reload=False, log_level="info")
 
 

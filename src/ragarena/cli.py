@@ -1,4 +1,4 @@
-﻿"""
+"""
 RagArena CLI.
 
     RagArena serve                          → web dashboard at localhost:4000
@@ -107,7 +107,7 @@ def cmd_serve(args):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="RagArena",
+    p = argparse.ArgumentParser(prog="ragarena",
                                 description="⚡ RAG strategy & model evaluation framework")
     sub = p.add_subparsers(dest="command", required=True)
 

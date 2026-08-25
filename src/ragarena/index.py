@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import re
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
 from .router import embedding, Usage
+
+# Content types preserved intact (not sentence-split) by the multimodal pipeline.
+_TYPED_DOCS = {"table", "image", "equation"}
 
 
 class TextChunker:
@@ -63,6 +67,25 @@ class TextChunker:
         return merged
 
 
+@dataclass
+class MultimodalDocument:
+    """
+    A single document of a specific content type.
+
+    Tables, images and equations are kept intact (not sentence-split) so their
+    structure survives retrieval — the approach used by multimodal RAG systems.
+    """
+
+    content: str
+    doc_type: str = "text"          # text | table | image | equation
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        m = dict(self.metadata)
+        m["doc_type"] = self.doc_type
+        return {"text": self.content, "metadata": m}
+
+
 class VectorIndex:
     """
     Embedding-backed search index.
@@ -85,15 +108,27 @@ class VectorIndex:
         self.last_embed_usage: List[Usage] = []
 
     # ── ingestion ────────────────────────────────────────────────────────────
-    def add_documents(self, documents: List[Dict[str, Any]]) -> int:
+    def add_documents(self, documents: List[Union[Dict[str, Any], "MultimodalDocument"]]) -> int:
         new_texts: List[str] = []
         new_metas: List[Dict[str, Any]] = []
-        for doc in documents:
+        for raw in documents:
+            doc = raw.to_dict() if isinstance(raw, MultimodalDocument) else raw
             text = doc.get("text") or doc.get("content") or doc.get("page_content") or ""
-            meta = doc.get("metadata", {}) or {}
-            for piece in self.chunker.split(text):
+            meta = dict(doc.get("metadata", {}) or {})
+            doc_type = (meta.get("doc_type") or doc.get("doc_type") or "text").lower()
+
+            # tables / images / equations are preserved intact (only split if huge)
+            if doc_type in _TYPED_DOCS and len(text) > self.chunker.chunk_size:
+                pieces = self.chunker.split(text)
+            elif doc_type in _TYPED_DOCS:
+                pieces = [text] if text.strip() else []
+            else:
+                pieces = self.chunker.split(text)
+
+            for piece in pieces:
                 new_texts.append(piece)
                 m = dict(meta)
+                m["doc_type"] = doc_type
                 m.setdefault("chunk_id", str(uuid.uuid4())[:8])
                 new_metas.append(m)
 

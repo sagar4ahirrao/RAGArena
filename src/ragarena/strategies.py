@@ -1,5 +1,5 @@
 """
-RAG strategy library — 13 battle-tested retrieval+generation pipelines.
+RAG strategy library — 18 battle-tested retrieval+generation pipelines.
 
 Every strategy implements the same interface::
 
@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from .router import completion, embedding, rerank, ModelResponse, Usage
+from .graph import GraphIndex
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -645,6 +646,131 @@ class FLARERAG(Strategy):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# 14–17. Graph RAG (LightRAG-style dual-level retrieval)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _graph_index(index: "VectorIndex", llm_model: str) -> GraphIndex:
+    """Build (and cache) a graph index on top of a shared VectorIndex."""
+    g = getattr(index, "_graph_index", None)
+    if g is None:
+        g = GraphIndex(index)
+        g.build(llm_model)
+        index._graph_index = g  # type: ignore[attr-defined]
+    return g
+
+
+class GraphLocalRAG(Strategy):
+    name = "graph_local"
+    description = "Entity-precise retrieval over a knowledge graph"
+
+    def run(self, query, index, llm_model, embedding_model):
+        t0 = time.perf_counter()
+        g = _graph_index(index, llm_model)
+        chunks = g.local_search(query, k=self.config.get("k", 5),
+                               llm_model=llm_model, embedding_model=embedding_model)
+        context = "\n\n---\n\n".join(c.text for c in chunks)
+        resp = completion(model=llm_model, temperature=0,
+                          messages=[{"role": "system", "content": DEFAULT_SYSTEM},
+                                    {"role": "user", "content": _rag_prompt(query, context)}])
+        resp.usage.cost_usd += sum(u.cost_usd for u in index.last_embed_usage)
+        return StrategyResult(resp.text, chunks, context, resp.usage,
+                              time.perf_counter() - t0, {"mode": "local"})
+
+
+class GraphGlobalRAG(Strategy):
+    name = "graph_global"
+    description = "Macro-theme retrieval across entity communities"
+
+    def run(self, query, index, llm_model, embedding_model):
+        t0 = time.perf_counter()
+        g = _graph_index(index, llm_model)
+        chunks, theme = g.global_search(
+            query, k=self.config.get("k", 5),
+            n_communities=self.config.get("n_communities", 4),
+            llm_model=llm_model, embedding_model=embedding_model)
+        context = theme + "\n\n---\n\n" + "\n\n---\n\n".join(c.text for c in chunks)
+        resp = completion(model=llm_model, temperature=0,
+                          messages=[{"role": "system", "content": DEFAULT_SYSTEM},
+                                    {"role": "user", "content": _rag_prompt(query, context)}])
+        resp.usage.cost_usd += sum(u.cost_usd for u in index.last_embed_usage)
+        return StrategyResult(resp.text, chunks, context, resp.usage,
+                              time.perf_counter() - t0, {"mode": "global"})
+
+
+class GraphHybridRAG(Strategy):
+    name = "graph_hybrid"
+    description = "Combines entity-local and macro-theme retrieval"
+
+    def run(self, query, index, llm_model, embedding_model):
+        t0 = time.perf_counter()
+        g = _graph_index(index, llm_model)
+        chunks, theme = g.search(query, mode="hybrid", k=self.config.get("k", 5),
+                                 llm_model=llm_model, embedding_model=embedding_model)
+        context = theme + "\n\n---\n\n" + "\n\n---\n\n".join(c.text for c in chunks)
+        resp = completion(model=llm_model, temperature=0,
+                          messages=[{"role": "system", "content": DEFAULT_SYSTEM},
+                                    {"role": "user", "content": _rag_prompt(query, context)}])
+        resp.usage.cost_usd += sum(u.cost_usd for u in index.last_embed_usage)
+        return StrategyResult(resp.text, chunks, context, resp.usage,
+                              time.perf_counter() - t0, {"mode": "hybrid"})
+
+
+class GraphMixRAG(Strategy):
+    name = "graph_mix"
+    description = "Local entities + global themes fused in one synthesis pass"
+
+    def run(self, query, index, llm_model, embedding_model):
+        t0 = time.perf_counter()
+        g = _graph_index(index, llm_model)
+        chunks, theme = g.search(query, mode="mix", k=self.config.get("k", 5),
+                                 llm_model=llm_model, embedding_model=embedding_model)
+        context = theme + "\n\n---\n\n" + "\n\n---\n\n".join(c.text for c in chunks)
+        resp = completion(model=llm_model, temperature=0,
+                          messages=[{"role": "system", "content": DEFAULT_SYSTEM},
+                                    {"role": "user", "content": _rag_prompt(query, context)}])
+        resp.usage.cost_usd += sum(u.cost_usd for u in index.last_embed_usage)
+        return StrategyResult(resp.text, chunks, context, resp.usage,
+                              time.perf_counter() - t0, {"mode": "mix"})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 18. Multimodal RAG (RAGAnything-style typed documents)
+# ──────────────────────────────────────────────────────────────────────────────
+
+_DOC_TYPE_LABEL = {
+    "text": "TEXT", "table": "TABLE", "image": "IMAGE", "equation": "EQUATION",
+}
+
+
+class MultimodalRAG(Strategy):
+    name = "multimodal"
+    description = "Retrieves typed chunks (text/table/image/equation) with type tags"
+
+    def run(self, query, index, llm_model, embedding_model):
+        t0 = time.perf_counter()
+        requested = self.config.get("doc_types")
+        flt = {"doc_type": requested} if requested else None
+        chunks = index.search(query, k=self.config.get("k", 6),
+                             embed_model=embedding_model, filter=flt)
+
+        blocks = []
+        for c in chunks:
+            dtype = c.metadata.get("doc_type", "text")
+            label = _DOC_TYPE_LABEL.get(dtype, dtype.upper())
+            blocks.append(f"[{label}] {c.text}")
+        context = "\n\n".join(blocks)
+        resp = completion(model=llm_model, temperature=0, messages=[
+            {"role": "system", "content":
+             "You are a precise assistant. The context below mixes several content "
+             "types (TEXT, TABLE, IMAGE, EQUATION). Use all of them. Answer ONLY "
+             "from the provided context."},
+            {"role": "user", "content": _rag_prompt(query, context)}])
+        resp.usage.cost_usd += sum(u.cost_usd for u in index.last_embed_usage)
+        return StrategyResult(resp.text, chunks, context, resp.usage,
+                              time.perf_counter() - t0, {"doc_types": requested})
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Registry
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -653,6 +779,7 @@ STRATEGIES: Dict[str, type] = {
         NaiveRAG, HybridRAG, MultiQueryRAG, HyDERAG, RerankRAG, RAGFusion,
         ContextualCompressionRAG, CRAGRAG, SelfRAG, QueryDecompositionRAG,
         StepBackRAG, AgenticRAG, FLARERAG,
+        GraphLocalRAG, GraphGlobalRAG, GraphHybridRAG, GraphMixRAG, MultimodalRAG,
     ]
 }
 

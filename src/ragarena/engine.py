@@ -1,9 +1,9 @@
-﻿"""
+"""
 Evaluation engine — `evaluate()` and `compare()` one-liners.
 
-LiteLLM-style ergonomics::
+Ergonomic one-liners::
 
-    from RagArena import evaluate
+    from ragarena import evaluate
 
     result = evaluate(
         questions=["What is RAG?"],

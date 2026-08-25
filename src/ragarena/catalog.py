@@ -1,7 +1,7 @@
-﻿"""
+"""
 RagArena Model Catalog — every popular LLM, embedding, reranker & vector store.
 
-Models are addressed as ``provider/model-name`` exactly like litellm::
+Models are addressed as ``provider/model-name``::
 
     RagArena.completion(model="openai/gpt-4o-mini", messages=[...])
     RagArena.completion(model="anthropic/claude-3-5-sonnet-20240620", ...)
@@ -328,7 +328,7 @@ class UnknownModelError(KeyError):
     def __init__(self, model_id: str):
         super().__init__(
             f"Unknown model '{model_id}'. "
-            f"Browse the catalog: `RagArena models list`, or call RagArena.list_models()."
+            f"Browse the catalog: `ragarena models list`, or call ragarena.list_models()."
         )
 
 

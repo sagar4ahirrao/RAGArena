@@ -1,11 +1,11 @@
-﻿# Contributing to RagArena
+# Contributing to RagArena
 
 Thanks for helping make RAG evaluation less guesswork! 🎯
 
 ## Dev setup
 
 ```bash
-git clone https://github.com/RagArena/RagArena && cd RagArena
+git clone https://github.com/sagar4ahirrao/ragarena && cd RagArena
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[all,dev]"
 pre-commit install                                    # if hooks configured
@@ -15,7 +15,7 @@ pytest                                                # run tests
 ## Project layout
 
 ```
-src/RagArena/
+src/ragarena/
 ├── catalog.py      # model registry: providers, pricing, context windows
 ├── router.py       # unified completion()/embedding()/rerank() across providers
 ├── strategies.py   # 13 RAG pipelines (all implement Strategy.run())

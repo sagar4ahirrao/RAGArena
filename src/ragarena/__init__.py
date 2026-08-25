@@ -1,10 +1,10 @@
-﻿"""
+"""
 ⚡ RagArena — evaluate & benchmark RAG strategies, LLMs and embedding models
 across every popular provider with one unified API.
 
-LiteLLM-style quickstart::
+Quickstart::
 
-    from RagArena import evaluate, compare
+    from ragarena import evaluate, compare
 
     report = evaluate(
         questions=["What is RAG?"],
@@ -28,12 +28,14 @@ from .strategies import (
     NaiveRAG, HybridRAG, MultiQueryRAG, HyDERAG, RerankRAG, RAGFusion,
     ContextualCompressionRAG, CRAGRAG, SelfRAG, QueryDecompositionRAG,
     StepBackRAG, AgenticRAG, FLARERAG,
+    GraphLocalRAG, GraphGlobalRAG, GraphHybridRAG, GraphMixRAG, MultimodalRAG,
 )
+from .graph import GraphIndex
 from .metrics import METRICS, DEFAULT_METRIC_SETS, MetricResult
-from .index import VectorIndex, TextChunker, chunk_text
+from .index import VectorIndex, TextChunker, chunk_text, MultimodalDocument
 from .engine import evaluate, compare, EvaluationReport, ComparisonResult
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "RagArena contributors"
 
 __all__ = [
@@ -48,6 +50,9 @@ __all__ = [
     "NaiveRAG", "HybridRAG", "MultiQueryRAG", "HyDERAG", "RerankRAG", "RAGFusion",
     "ContextualCompressionRAG", "CRAGRAG", "SelfRAG", "QueryDecompositionRAG",
     "StepBackRAG", "AgenticRAG", "FLARERAG",
+    "GraphLocalRAG", "GraphGlobalRAG", "GraphHybridRAG", "GraphMixRAG", "MultimodalRAG",
+    # graph / multimodal
+    "GraphIndex", "MultimodalDocument",
     # metrics / index / engine
     "METRICS", "DEFAULT_METRIC_SETS", "MetricResult",
     "VectorIndex", "TextChunker", "chunk_text",

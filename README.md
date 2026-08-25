@@ -1,23 +1,23 @@
-﻿<div align="center">
+<div align="center">
 
 # ⚡ RagArena
 
 ### Evaluate & benchmark every RAG strategy × LLM × embedding model — with one unified API
 
-**13 strategies · 100+ models · 25+ providers · 10 metrics · built-in web dashboard**
+**18 strategies · 100+ models · 25+ providers · 10 metrics · built-in web dashboard**
 
-[![PyPI](https://img.shields.io/pypi/v/RagArena?color=blue&logo=pypi)](https://pypi.org/project/RagArena/)
+[![PyPI](https://img.shields.io/pypi/v/ragarena?color=blue&logo=pypi)](https://pypi.org/project/ragarena/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue?logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen?logo=githubactions)]()
 
-*Like [LiteLLM](https://github.com/BerriAI/litellm) unified LLM calls, RagArena unifies **RAG evaluation**:*
+*One unified API across **every RAG strategy, LLM and embedding model**:*
 
 ```python
-from RagArena import evaluate
+from ragarena import evaluate
 
 evaluate(questions=[...], documents=[...],
-         strategy="hybrid",                      # any of 13 strategies
+         strategy="hybrid",                      # any of 18 strategies
          model="openai/gpt-4o-mini",             # swap with claude/gemini/llama/...
          embedding_model="voyage/voyage-3",      # swap with openai/cohere/jina/...
          metrics="quality").print_summary()
@@ -38,7 +38,7 @@ embeddings beat OpenAI's on my legal corpus?"*
 | | Ragas | DeepEval | TruLens | **RagArena** |
 |---|---|---|---|---|
 | Score *your existing* pipeline | ✅ | ✅ | ✅ | ✅ |
-| **Run the pipelines themselves** (13 strategies) | ❌ | ❌ | ❌ | ✅ |
+| **Run the pipelines themselves** (18 strategies) | ❌ | ❌ | ❌ | ✅ |
 | **Swap LLM/embedding providers per run** (`provider/model` syntax) | partial | partial | partial | ✅ 100+ models |
 | Built-in cost + latency accounting per strategy | ❌ | ❌ | partial | ✅ |
 | Head-to-head leaderboard w/ shared index | ❌ | ❌ | ❌ | ✅ |
@@ -47,15 +47,15 @@ embeddings beat OpenAI's on my legal corpus?"*
 ## Install
 
 ```bash
-pip install RagArena                 # core
-pip install "RagArena[all]"          # + all provider SDKs
+pip install ragarena                 # core
+pip install "ragarena[all]"          # + all provider SDKs
 export OPENAI_API_KEY=sk-...        # only the providers you use
 ```
 
 ## 60-second quickstart
 
 ```python
-from RagArena import evaluate
+from ragarena import evaluate
 
 docs = [
     {"text": "Retrieval-Augmented Generation (RAG) grounds LLM answers in your documents."},
@@ -94,7 +94,7 @@ report.save("report.json")
 ## 🏆 Find the best strategy/model in one call
 
 ```python
-from RagArena import compare
+from ragarena import compare
 
 result = compare(
     questions=my_questions,
@@ -131,7 +131,7 @@ RagArena serve            # → http://localhost:4000
 Models are addressed as `provider/name`:
 
 ```python
-from RagArena import completion
+from ragarena import completion
 
 completion(model="openai/gpt-4o-mini", ...)          # OpenAI
 completion(model="anthropic/claude-3-5-sonnet-20240620", ...)
@@ -182,10 +182,10 @@ Browse everything from the CLI:
 RagArena models list                       # all 100+
 RagArena models list --modality embedding  # embeddings only
 RagArena models providers                  # provider summary
-RagArena strategies                        # the 13 strategies
+RagArena strategies                        # the 18 strategies
 ```
 
-## 🧪 The 13 built-in strategies
+## 🧪 The 18 built-in strategies
 
 | Strategy | What it does | Best for |
 |---|---|---|
@@ -202,6 +202,70 @@ RagArena strategies                        # the 13 strategies
 | `step_back` | abstract principle question first | conceptual/domain Qs |
 | `agentic` | iterative search→reflect→search loop | hard research tasks |
 | `flare` | flags uncertain draft claims → re-retrieves | hallucination-prone domains |
+| `graph_local` | entity-precise retrieval over a knowledge graph | "who/what" factual lookups |
+| `graph_global` | macro-theme retrieval across entity communities | "how/why" analytical Qs |
+| `graph_hybrid` | combines local entities + global themes | general-purpose graph RAG |
+| `graph_mix` | local + global fused in one synthesis pass | best-of-both retrieval |
+| `multimodal` | retrieves typed chunks (text/table/image/equation) | mixed-content documents |
+
+## 🕸️ Graph RAG (dual-level retrieval)
+
+`graph_*` strategies layer a lightweight knowledge graph over your index — entities
+are extracted per chunk, chunks that share entities form *communities*, and queries
+are answered at two levels:
+
+- **local** (`graph_local`) — match the query's entities to graph nodes and pull the
+  connected chunks. Best for precise "who/what" factual lookups.
+- **global** (`graph_global`) — summarise each community, rank communities by relevance
+  to the query, then synthesise a cross-document answer. Best for "how/why" analysis.
+- **hybrid** / **mix** (`graph_hybrid`, `graph_mix`) — combine both levels.
+
+The graph is built lazily and cached on a shared index, so `compare()` only builds it
+once. Entity extraction falls back to a deterministic keyword extractor if the LLM is
+unavailable.
+
+```python
+from ragarena import compare
+
+result = compare(
+    questions=["Who builds Pinecone?", "How do retrieval systems relate?"],
+    documents=my_docs,
+    configs=[
+        {"strategy": "graph_local",  "model": "openai/gpt-4o-mini"},
+        {"strategy": "graph_global", "model": "openai/gpt-4o-mini"},
+        {"strategy": "graph_hybrid", "model": "anthropic/claude-3-haiku-20240307"},
+    ],
+)
+```
+
+Build a graph index directly for inspection:
+
+```python
+from ragarena import VectorIndex, GraphIndex
+
+vi = VectorIndex(embedding_model="openai/text-embedding-3-small")
+vi.add_documents(my_docs)
+g = GraphIndex(vi).build("openai/gpt-4o-mini")   # cache on the index
+local  = g.local_search("What is Pinecone?", k=5, llm_model="openai/gpt-4o-mini")
+chunks, theme = g.global_search("How do vector DBs compare?", k=5, llm_model="openai/gpt-4o-mini")
+```
+
+## 🖼️ Multimodal RAG
+
+Tables, images and equations are kept **intact** (not sentence-split) and tagged with a
+`doc_type` so retrieval and generation can treat them differently:
+
+```python
+from ragarena import MultimodalDocument, evaluate
+
+docs = [
+    MultimodalDocument(content="| model | params |", doc_type="table"),
+    MultimodalDocument(content="E = mc^2",           doc_type="equation"),
+    {"text": "RAG grounds LLMs in retrieved context.", "metadata": {"doc_type": "text"}},
+]
+evaluate(questions=["..."], documents=docs, strategy="multimodal",
+         model="openai/gpt-4o-mini")
+```
 
 ## 📐 Metrics
 
@@ -220,9 +284,9 @@ Any model can be the judge: `judge_model="anthropic/claude-3-haiku-20240307"`.
 Already have a RAG system? Score it directly:
 
 ```python
-from RagArena import VectorIndex
-from RagArena.engine import EvalSample, MetricContext
-from RagArena.metrics import resolve_metrics
+from ragarena import VectorIndex
+from ragarena.engine import EvalSample, MetricContext
+from ragarena.metrics import resolve_metrics
 
 # ...run YOUR pipeline to get answer + chunks...
 sample = EvalSample(question=q, reference_answer=gt,
@@ -252,9 +316,11 @@ Also available: `POST /api/compare` · `GET /api/catalog` · `GET /api/runs/{id}
 - [ ] Async batch runner + checkpoint/resume
 - [ ] Statistical significance tests (paired bootstrap) between configs
 - [ ] Chroma/Pinecone/Qdrant backends for `VectorIndex`
+- [ ] Graph RAG incremental updates + community-aware re-indexing
+- [ ] Multimodal parsing (PDF/images via MinerU) feeding `MultimodalDocument`
 - [ ] Prompt-optimization loop (DSPy-style)
 - [ ] Team features: API keys, budgets, RBAC
-- [ ] CI mode: `RagArena ci --threshold faithfulness>=0.8` (fails PRs on regressions)
+- [ ] CI mode: `ragarena ci --threshold faithfulness>=0.8` (fails PRs on regressions)
 
 ## Contributing
 
