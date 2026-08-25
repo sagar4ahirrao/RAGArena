@@ -185,7 +185,7 @@ class MultiQueryRAG(Strategy):
             {"role": "user", "content":
                 f"Write {n} alternative search queries for the question below. "
                 f"One per line, no numbering.\n\nQuestion: {query}\n\nQueries:"}])
-        variants = [v.strip("-• ").strip() for v in gen.text.splitlines() if v.strip()][:n]
+        variants = [s for s in (v.strip("-• ").strip() for v in gen.text.splitlines()) if s][:n]
         variants.insert(0, query)
 
         pool: List[Chunk] = []
@@ -228,7 +228,8 @@ class HyDERAG(Strategy):
                 f"Write one paragraph that would appear in the perfect source document "
                 f"answering this question. Be specific and technical.\n\n{query}"}])
 
-        vec = embedding(embedding_model, input=[hyp.text])
+        hyp_text = hyp.text.strip() or query   # fall back to the raw query if the model returned nothing
+        vec = embedding(embedding_model, input=[hyp_text])
         chunks = index.search_by_vector(vec.vectors[0], k=self.config.get("k", 5))
 
         context = "\n\n---\n\n".join(c.text for c in chunks)
@@ -290,7 +291,7 @@ class RAGFusion(Strategy):
         gen = completion(model=llm_model, messages=[
             {"role": "user", "content":
                 f"Generate {n} diverse search queries for: {query}\nOne per line."}])
-        variants = [v.strip("-• ").strip() for v in gen.text.splitlines() if v.strip()][:n]
+        variants = [s for s in (v.strip("-• ").strip() for v in gen.text.splitlines()) if s][:n]
         variants.insert(0, query)
 
         rrf: Dict[str, float] = {}
@@ -397,7 +398,8 @@ class CRAGRAG(Strategy):
             grade_usage.prompt_tokens += rw.usage.prompt_tokens
             grade_usage.completion_tokens += rw.usage.completion_tokens
             grade_usage.cost_usd += rw.usage.cost_usd
-            more = index.search(rw.text.strip(), k=self.config.get("k", 5), embed_model=embedding_model)
+            rewritten_query = rw.text.strip() or query   # fall back to the raw query if the model returned nothing
+            more = index.search(rewritten_query, k=self.config.get("k", 5), embed_model=embedding_model)
             merged = _dedupe([c for c, ok in zip(chunks, grades) if ok] + more)
             chunks = merged[: self.config.get("k", 5)]
 
@@ -469,7 +471,7 @@ class QueryDecompositionRAG(Strategy):
         dec = completion(model=llm_model, messages=[
             {"role": "user", "content":
                 f"Break this into 2-4 independent sub-questions, one per line:\n\n{query}"}])
-        subs = [s.strip("-• ").strip() for s in dec.text.splitlines() if s.strip()]
+        subs = [s for s in (s.strip("-• ").strip() for s in dec.text.splitlines()) if s]
 
         sub_answers = []
         agg_usage = Usage(dec.usage.prompt_tokens, dec.usage.completion_tokens,
@@ -516,8 +518,9 @@ class StepBackRAG(Strategy):
                 f"Rewrite this specific question as a general/conceptual one about underlying principles.\n\n"
                 f"Specific: {query}\n\nGeneral:"}])
 
+        step_back_text = sb.text.strip() or query   # fall back to the raw query if the model returned nothing
         spec_chunks = index.search(query, k=self.config.get("k", 3), embed_model=embedding_model)
-        broad_chunks = index.search(sb.text.strip(), k=self.config.get("k", 3),
+        broad_chunks = index.search(step_back_text, k=self.config.get("k", 3),
                                     embed_model=embedding_model)
         chunks = _dedupe(spec_chunks + broad_chunks)[: self.config.get("final_k", 6)]
 
@@ -525,7 +528,7 @@ class StepBackRAG(Strategy):
         resp = completion(model=llm_model, temperature=0, messages=[
             {"role": "system", "content": DEFAULT_SYSTEM},
             {"role": "user", "content":
-                f"General principle: {sb.text.strip()}\n\nContext:\n{context}\n\nSpecific question: {query}\n\nAnswer:"}])
+                f"General principle: {step_back_text}\n\nContext:\n{context}\n\nSpecific question: {query}\n\nAnswer:"}])
         total_usage = Usage(sb.usage.prompt_tokens + resp.usage.prompt_tokens,
                             sb.usage.completion_tokens + resp.usage.completion_tokens,
                             sb.usage.total_tokens + resp.usage.total_tokens,
@@ -577,7 +580,8 @@ class AgenticRAG(Strategy):
                 answer_text = step.text.split("FINAL_ANSWER", 1)[1].strip().lstrip(":").strip()
                 break
             if "SEARCH:" in step.text.upper():
-                current_search = step.text.split(":", 1)[1].strip()
+                # fall back to the original query if the model returned an empty search term
+                current_search = step.text.split(":", 1)[1].strip() or query
             else:
                 answer_text = step.text
                 break
@@ -621,7 +625,7 @@ class FLARERAG(Strategy):
 
         extra_chunks: List[Chunk] = []
         if "SOLID" not in audit.text.upper():
-            weak = [l.strip("-• ").strip() for l in audit.text.splitlines() if l.strip()]
+            weak = [s for s in (l.strip("-• ").strip() for l in audit.text.splitlines()) if s]
             for w in weak[:2]:
                 extra_chunks.extend(index.search(w, k=2, embed_model=embedding_model))
 

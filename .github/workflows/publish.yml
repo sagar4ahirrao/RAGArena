@@ -23,6 +23,21 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build playground UI (static export)
+        run: |
+          cd web
+          npm ci
+          NEXT_STATIC_EXPORT=1 npx next build
+          rm -rf ../src/ragarena/api/ui_dist
+          cp -r out ../src/ragarena/api/ui_dist
+
       - name: Install build tooling
         run: python -m pip install --upgrade pip build twine
 

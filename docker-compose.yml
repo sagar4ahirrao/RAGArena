@@ -1,0 +1,26 @@
+services:
+  ragarena:
+    build: .
+    image: sagar4ahirrao/ragarena:latest
+    container_name: ragarena
+    ports:
+      - "4000:4000"   # FastAPI + evaluation engine + playground UI (single origin)
+    environment:
+      # provider API keys — only set the ones you use
+      AZURE_FOUNDRY_KEY: ${AZURE_FOUNDRY_KEY:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - ragarena_cache:/root/.cache
+    restart: unless-stopped
+
+volumes:
+  ragarena_cache:

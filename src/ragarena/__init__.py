@@ -33,14 +33,16 @@ from .strategies import (
 from .graph import GraphIndex
 from .metrics import METRICS, DEFAULT_METRIC_SETS, MetricResult
 from .index import VectorIndex, TextChunker, chunk_text, MultimodalDocument
-from .engine import evaluate, compare, EvaluationReport, ComparisonResult
+from .engine import evaluate, compare, recommend_strategy, EvaluationReport, ComparisonResult, RecommendationResult
+from .ingest import parse_file, parse_dir, to_multimodal, from_sql
+from .datasets import load_dataset, list_datasets, DATASET_REGISTRY
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __author__ = "RagArena contributors"
 
 __all__ = [
     # one-liner APIs
-    "completion", "embedding", "rerank", "evaluate", "compare",
+    "completion", "embedding", "rerank", "evaluate", "compare", "recommend_strategy",
     # catalog
     "list_models", "list_providers", "get_model", "has_model", "estimate_cost",
     "CHAT_MODELS", "EMBEDDING_MODELS", "RERANK_MODELS", "VECTOR_STORES",
@@ -53,8 +55,11 @@ __all__ = [
     "GraphLocalRAG", "GraphGlobalRAG", "GraphHybridRAG", "GraphMixRAG", "MultimodalRAG",
     # graph / multimodal
     "GraphIndex", "MultimodalDocument",
+    # ingestion / datasets
+    "parse_file", "parse_dir", "to_multimodal", "from_sql",
+    "load_dataset", "list_datasets", "DATASET_REGISTRY",
     # metrics / index / engine
     "METRICS", "DEFAULT_METRIC_SETS", "MetricResult",
     "VectorIndex", "TextChunker", "chunk_text",
-    "EvaluationReport", "ComparisonResult",
+    "EvaluationReport", "ComparisonResult", "RecommendationResult",
 ]

@@ -24,8 +24,9 @@ class MetricResult:
     details: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
+        precision = 8 if self.name == "cost_usd" else 4
         return {"name": self.name,
-                "score": round(self.score, 4),
+                "score": round(self.score, precision),
                 "details": {k: (v if not isinstance(v, float) else round(v, 6))
                             for k, v in self.details.items()}}
 

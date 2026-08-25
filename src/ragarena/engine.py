@@ -19,6 +19,7 @@ Ergonomic one-liners::
 from __future__ import annotations
 
 import json
+import sys
 import time
 import uuid
 import statistics
@@ -27,10 +28,20 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 from .catalog import get_model
-from .index import VectorIndex
+from .index import VectorIndex, TextChunker
 from .metrics import EvalSample, MetricContext, MetricResult, resolve_metrics, METRICS
 from .router import completion, Usage
-from .strategies import Chunk, StrategyResult, get_strategy
+from .strategies import Chunk, StrategyResult, get_strategy, STRATEGIES
+
+
+def _print(*args, **kwargs) -> None:
+    """print() that never crashes on non-UTF-8 consoles (e.g. Windows cp1252)."""
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        enc = sys.stdout.encoding or "ascii"
+        safe = [a.encode(enc, errors="replace").decode(enc) if isinstance(a, str) else a for a in args]
+        print(*safe, **kwargs)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -102,15 +113,15 @@ class EvaluationReport:
 
     def print_summary(self) -> None:
         r = self.summary()
-        print(f"\n╭─ RagArena · {self.strategy} · {self.model}")
-        print(f"├─ embedding : {self.embedding_model}")
-        print(f"├─ samples   : {len(self.samples)}   wall time {self.wall_time_s:.1f}s")
-        print("├" + "─" * 58)
+        _print(f"\n╭─ RagArena · {self.strategy} · {self.model}")
+        _print(f"├─ embedding : {self.embedding_model}")
+        _print(f"├─ samples   : {len(self.samples)}   wall time {self.wall_time_s:.1f}s")
+        _print("├" + "─" * 58)
         for k, v in r.items():
             label = k.replace("_", " ").rjust(18)
             val = f"${v:.6f}" if k == "total_cost_usd" else f"{v}"
-            print(f"│  {label} : {val}")
-        print("╰" + "─" * 58)
+            _print(f"│  {label} : {val}")
+        _print("╰" + "─" * 58)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -129,6 +140,8 @@ def evaluate(
     judge_model: str = "openai/gpt-4o-mini",
     metrics: Union[str, List[str]] = "production",
     max_concurrency: int = 1,
+    chunk_size: Optional[int] = None,
+    chunk_overlap: Optional[int] = None,
 ) -> EvaluationReport:
     """
     Run a full RAG evaluation over a set of questions.
@@ -150,7 +163,9 @@ def evaluate(
     if index is None:
         if not documents:
             raise ValueError("Provide either `documents` or a prebuilt `index`.")
-        index = VectorIndex(embedding_model=embedding_model)
+        chunker = (TextChunker(chunk_size or 1000, chunk_overlap or 150)
+                   if (chunk_size or chunk_overlap) else None)
+        index = VectorIndex(embedding_model=embedding_model, chunker=chunker)
         index.add_documents(documents)
 
     strat = get_strategy(strategy, **(strategy_config or {}))
@@ -235,14 +250,14 @@ class ComparisonResult:
     def print_leaderboard(self, sort_by: str = "faithfulness") -> None:
         rows = self.leaderboard(sort_by)
         if not rows:
-            print("(no results)")
+            _print("(no results)")
             return
         cols = list(rows[0].keys())
         widths = [max(len(c), max(len(str(r.get(c, ""))) for r in rows)) for c in cols]
-        print("\n|" + "|".join(c.ljust(w) for c, w in zip(cols, widths)) + "|")
-        print("|" + "|".join("-" * w for w in widths) + "|")
+        _print("\n|" + "|".join(c.ljust(w) for c, w in zip(cols, widths)) + "|")
+        _print("|" + "|".join("-" * w for w in widths) + "|")
         for r in rows:
-            print("|" + "|".join(str(r.get(c, "")).ljust(w) for c, w in zip(cols, widths)) + "|")
+            _print("|" + "|".join(str(r.get(c, "")).ljust(w) for c, w in zip(cols, widths)) + "|")
 
     def save(self, path: str) -> None:
         with open(path, "w", encoding="utf-8") as f:
@@ -280,7 +295,7 @@ def compare(
     result = ComparisonResult()
     for cfg in configs:
         name = f"{cfg.get('strategy', 'naive')}·{cfg.get('model', 'openai/gpt-4o-mini')}"
-        print(f"▶ evaluating {name} …")
+        _print(f"▶ evaluating {name} …")
         report = evaluate(
             questions=questions,
             index=shared_index,                      # reuse!
@@ -295,3 +310,113 @@ def compare(
         result.matrix[name] = report.summary()
 
     return result
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Strategy recommendation — "which RAG strategy is best for MY data?"
+# ──────────────────────────────────────────────────────────────────────────────
+
+QUALITY_METRIC_NAMES = (
+    "faithfulness", "answer_relevance", "answer_correctness",
+    "context_precision", "context_recall", "hit_rate", "mrr",
+)
+
+
+@dataclass
+class RecommendationResult:
+    leaderboard: List[Dict[str, Any]]      # sorted best -> worst, one row per strategy
+    best: Optional[str]
+    reasoning: str
+    comparison: ComparisonResult
+
+    def to_dict(self) -> dict:
+        return {
+            "leaderboard": self.leaderboard,
+            "best": self.best,
+            "reasoning": self.reasoning,
+            "matrix": self.comparison.matrix,
+        }
+
+    def print_summary(self) -> None:
+        _print(f"\n🏆 best strategy for this dataset: {self.best}")
+        _print(f"   {self.reasoning}\n")
+        _print(f"{'rank':<5}{'strategy':<16}{'score':<8}{'cost($)':<12}{'latency(s)'}")
+        for i, row in enumerate(self.leaderboard, 1):
+            _print(f"{i:<5}{row['strategy']:<16}{row['composite_score']:<8}"
+                   f"{row['total_cost_usd']:<12}{row['avg_latency_s']}")
+
+
+def recommend_strategy(
+    questions: List[str],
+    documents: List[Dict[str, Any]],
+    reference_answers: Optional[List[Optional[str]]] = None,
+    strategies: Optional[List[str]] = None,
+    model: str = "openai/gpt-4o-mini",
+    embedding_model: str = "openai/text-embedding-3-small",
+    judge_model: Optional[str] = None,
+    metrics: Union[str, List[str]] = "quality",
+    quality_weight: float = 0.7,
+    cost_weight: float = 0.15,
+    latency_weight: float = 0.15,
+) -> RecommendationResult:
+    """
+    Run every RAG strategy (or a chosen subset) over the SAME corpus + questions
+    and recommend the best-scoring one for this specific dataset.
+
+    Ranks by a composite score: mean quality-metric score, penalized by
+    normalized cost and latency (weights configurable — bump `quality_weight`
+    toward 1.0 to only care about answer quality, or raise `cost_weight` /
+    `latency_weight` for a budget/real-time-constrained deployment).
+
+    Example::
+
+        rec = recommend_strategy(questions, documents, reference_answers=refs,
+                                  model="groq/openai/gpt-oss-20b",
+                                  embedding_model="google/gemini-embedding-001")
+        print(rec.best, rec.reasoning)
+        for row in rec.leaderboard:
+            print(row["strategy"], row["composite_score"])
+    """
+    names = strategies or sorted(STRATEGIES)
+    configs = [{"strategy": s, "model": model,
+                "judge_model": judge_model or model} for s in names]
+
+    cmp_res = compare(
+        questions=questions, documents=documents, configs=configs,
+        reference_answers=reference_answers, metrics=metrics,
+        embedding_model=embedding_model,
+    )
+
+    rows = []
+    for cfg_name, agg in cmp_res.matrix.items():
+        strategy_name = cfg_name.split("·", 1)[0]
+        quality_scores = [agg[m] for m in QUALITY_METRIC_NAMES if m in agg]
+        quality = statistics.fmean(quality_scores) if quality_scores else 0.0
+        rows.append({
+            "strategy": strategy_name,
+            "quality_score": round(quality, 4),
+            "total_cost_usd": agg.get("total_cost_usd", 0.0),
+            "avg_latency_s": agg.get("avg_latency_s", 0.0),
+        })
+
+    max_cost = max((r["total_cost_usd"] for r in rows), default=0.0) or 1e-9
+    max_latency = max((r["avg_latency_s"] for r in rows), default=0.0) or 1e-9
+    for r in rows:
+        cost_penalty = r["total_cost_usd"] / max_cost
+        latency_penalty = r["avg_latency_s"] / max_latency
+        r["composite_score"] = round(
+            quality_weight * r["quality_score"]
+            - cost_weight * cost_penalty
+            - latency_weight * latency_penalty,
+            4,
+        )
+
+    rows.sort(key=lambda r: r["composite_score"], reverse=True)
+    best = rows[0]["strategy"] if rows else None
+    reasoning = (
+        f"highest composite score ({rows[0]['composite_score']}) — "
+        f"quality={rows[0]['quality_score']}, cost=${rows[0]['total_cost_usd']:.6f}, "
+        f"latency={rows[0]['avg_latency_s']}s across {len(questions)} question(s)"
+    ) if rows else "no strategies evaluated"
+
+    return RecommendationResult(leaderboard=rows, best=best, reasoning=reasoning, comparison=cmp_res)

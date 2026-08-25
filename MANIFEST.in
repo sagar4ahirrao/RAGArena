@@ -1,0 +1,2 @@
+include src/ragarena/api/dashboard.html
+recursive-include src/ragarena/api/ui_dist *

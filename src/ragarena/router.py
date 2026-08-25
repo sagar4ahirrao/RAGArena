@@ -23,6 +23,14 @@ from typing import Any, Dict, List, Optional
 import httpx
 from openai import OpenAI
 
+try:
+    from dotenv import load_dotenv
+    # override=True: a project-local .env should win over stray same-named vars
+    # already set in the shell (e.g. unrelated tools exporting GEMINI_API_KEY).
+    load_dotenv(override=True)
+except ImportError:  # pragma: no cover — optional convenience only
+    pass
+
 from .catalog import PROVIDERS, EMBEDDING_PROVIDERS, get_model, parse_model_id
 
 
@@ -138,7 +146,7 @@ def completion(
 
         completion(model="openai/gpt-4o-mini", messages=[...])
         completion(model="anthropic/claude-3-haiku-20240307", messages=[...])
-        completion(model="groq/llama-3.1-8b-instant", messages=[...])
+        completion(model="groq/openai/gpt-oss-20b", messages=[...])
         completion(model="ollama/llama3.1", messages=[...])   # local, free
     """
     provider, model_name = parse_model_id(model)
@@ -449,7 +457,7 @@ def rerank(
         from sentence_transformers import CrossEncoder
         key = f"xenc::{model}"
         if key not in _hf_model_cache:
-            _hf_model_cache[key] = CrossEncoder(model)
+            _hf_model_cache[key] = CrossEncoder(model_name)
         scores = _hf_model_cache[key].predict([(query, d) for d in documents])
         ranked = sorted(
             ({"index": i, "relevance_score": float(s)} for i, s in enumerate(scores)),

@@ -3,6 +3,66 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.2.2] — 2026-08-25
+
+Professional Next.js playground, multi-format ingestion, benchmark datasets, strategy
+recommendation, and a round of live-provider bugfixes.
+
+### Added
+- **Next.js 14 playground UI** (`web/`, static-export, served by FastAPI as `ui_dist/`) —
+  Overview, Playground (upload/dataset/paste corpus → chunking → strategy/model picker →
+  run → results table), Compare (multi-config leaderboard), Datasets browser, Model
+  catalog, Runs. Dark, LiteLLM-style dashboard; no Node required at runtime for installed
+  packages.
+- **Multi-format ingestion** (`ingest.py`) — pdf, docx, pptx, html, csv, json/jsonl, xlsx,
+  md, txt, images → document dicts, with graceful degradation when optional parser libs
+  are missing. New `ragarena[ingest]` extra.
+- **Popular benchmark datasets** (`datasets.py`) — bundled offline sets (`capitals`,
+  `rag_faq`) plus HuggingFace-backed loaders for `squad`, `hotpotqa`,
+  `natural_questions`, `triviaqa`, `ms_marco`. New `ragarena[datasets]` extra.
+- **`recommend_strategy()`** (`engine.py`) + `ragarena recommend` CLI + `POST
+  /api/recommend` — runs every strategy (or a chosen subset) against the *same* corpus
+  and questions and returns a composite-scored (quality/cost/latency-weighted)
+  leaderboard with a single recommended best strategy for that dataset.
+- `GET /api/env-status` — which providers have a usable API key in the current
+  environment, for a quick "what can I actually run right now" check.
+- `POST /api/upload` (multipart file → parsed documents) and `GET /api/datasets/{name}`.
+- Auto-loads a project-local `.env` (via `python-dotenv`, `override=True` so it wins over
+  stray same-named vars already in the shell).
+- `Dockerfile` (multi-stage: Next.js static export + Python runtime) and GitHub Actions
+  workflow to publish to Docker Hub + GHCR on tag push.
+
+### Fixed
+- **Windows console crash**: several `print()` calls used box-drawing/arrow Unicode
+  (`▶ → ·`) that crash outright on the default Windows `cp1252` console encoding,
+  breaking `ragarena strategies`, `ragarena models providers`, and `compare()` entirely
+  on Windows. `cli.py`'s entrypoint now reconfigures stdout/stderr to UTF-8 with
+  `errors="replace"`; `engine.py` gained an encoding-safe `_print()` used throughout.
+- `rerank` strategy: the default cross-encoder id was passed to `sentence-transformers`
+  including the `huggingface/` provider prefix (`huggingface/BAAI/bge-reranker-v2-m3`),
+  which HuggingFace Hub rejects — now correctly strips the prefix before loading.
+- `hyde` strategy: an empty/whitespace-only LLM-generated hypothetical answer was passed
+  straight to `embedding()`, which some providers (e.g. Gemini) reject outright — now
+  falls back to the original query when the draft is empty.
+- Per-sample `cost_usd` metric was rounded to 4 decimal places, silently zeroing out
+  real (sub-cent) costs in reports — cost now keeps 8 decimals of precision.
+- `evaluate(chunk_size=..., chunk_overlap=...)` passed those kwargs straight into
+  `VectorIndex()`, which doesn't accept them, raising `TypeError` on any call that set
+  custom chunking — now builds a `TextChunker` and passes it via `chunker=`.
+- `ingest.to_multimodal()` used a relative import (`from ..index import
+  MultimodalDocument`) one level too high for its own package, silently disabling
+  multimodal expansion; also fixed the constructor call to match
+  `MultimodalDocument`'s actual `content`/`doc_type`/`metadata` fields.
+- Retired Groq model ids (`llama-3.1-70b-versatile`, `llama-3.1-8b-instant`,
+  `mixtral-8x7b-32768`) replaced with currently-live models
+  (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `qwen/qwen3.6-27b`, `compound`,
+  `compound-mini`), verified against Groq's live `/v1/models`.
+- `google/text-embedding-004` removed from the catalog (410/404 on the OpenAI-compatible
+  embeddings path) — `google/gemini-embedding-001` is the working replacement.
+
+All 18 strategies verified end-to-end against live providers (Groq generation, Google
+Gemini embeddings) via `evaluate()`, `compare()`, and `recommend_strategy()`.
+
 ## [0.2.1] — 2026-08-25
 
 Provider coverage + playground groundwork.
@@ -70,5 +130,6 @@ First public release. ⚡
   `GET /api/runs/{id}`, `GET /health`.
 - Examples, contributing guide, MIT license.
 
+[0.2.2]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.2
 [0.2.0]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.1.0

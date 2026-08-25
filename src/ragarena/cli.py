@@ -5,11 +5,15 @@ RagArena CLI.
     RagArena models list [--provider X]     → browse 100+ model catalog
     RagArena run --strategy hybrid ...      → CLI evaluation
     RagArena compare --configs c1.yaml ...  → head-to-head benchmark
+    RagArena recommend --documents ... --questions ... → best strategy for YOUR data
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import signal
+import subprocess
 import sys
 from pathlib import Path
 
@@ -99,11 +103,69 @@ def cmd_compare(args):
         print(f"\nsaved → {args.save}")
 
 
+def cmd_recommend(args):
+    from .engine import recommend_strategy
+
+    docs = [{"text": t} for t in args.documents]
+    questions = [l.strip() for l in args.questions.split(",") if l.strip()]
+    refs = [r.strip() if r.strip() else None
+            for r in (args.references or "").split(",")]
+
+    rec = recommend_strategy(
+        questions=questions, documents=docs,
+        reference_answers=refs if any(refs) else None,
+        strategies=args.strategies.split(",") if args.strategies else None,
+        model=args.model, embedding_model=args.embedding, judge_model=args.judge,
+        metrics=args.metrics,
+        quality_weight=args.quality_weight, cost_weight=args.cost_weight,
+        latency_weight=args.latency_weight,
+    )
+    rec.print_summary()
+    if args.save:
+        with open(args.save, "w", encoding="utf-8") as f:
+            json.dump(rec.to_dict(), f, indent=2)
+        print(f"saved -> {args.save}")
+
+
 def cmd_serve(args):
     from .api.server import start_server
     url = f"http://localhost:{args.port}"
     print(f"\n  ⚡ RagArena dashboard → {url}\n")
     start_server(host=args.host, port=args.port)
+
+
+def cmd_ui(args):
+    """Launch the FastAPI backend + the Next.js playground together."""
+    web_dir = Path(__file__).resolve().parent.parent.parent / "web"
+    if not web_dir.exists():
+        print("error: web/ frontend not found — run `ragarena serve` for the API-only dashboard")
+        sys.exit(1)
+
+    backend = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "ragarena.api.server:app",
+         "--host", args.host, "--port", str(args.port)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    frontend = subprocess.Popen(
+        ["npm", "--prefix", str(web_dir), "run", "dev", "--", "--port", str(args.web_port)],
+        cwd=str(web_dir), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+
+    def _stop(*_):
+        for p in (backend, frontend):
+            try:
+                p.terminate()
+            except Exception:
+                pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, _stop)
+    print(f"\n  ⚡ RagArena API      → http://localhost:{args.port}")
+    print(f"  ⚡ RagArena Playground → http://localhost:{args.web_port}\n  (Ctrl+C to stop)\n")
+    try:
+        backend.wait()
+    finally:
+        _stop()
 
 
 def build_parser():
@@ -116,6 +178,13 @@ def build_parser():
     sp.add_argument("--host", default="0.0.0.0")
     sp.add_argument("--port", type=int, default=4000)
     sp.set_defaults(fn=cmd_serve)
+
+    # ui — Next.js playground + API
+    up = sub.add_parser("ui", help="launch Next.js playground + API (recommended)")
+    up.add_argument("--host", default="0.0.0.0")
+    up.add_argument("--port", type=int, default=4000, help="backend API port")
+    up.add_argument("--web-port", type=int, default=3000, help="frontend port")
+    up.set_defaults(fn=cmd_ui)
 
     # models
     mp = sub.add_parser("models", help="browse model catalog")
@@ -157,10 +226,34 @@ def build_parser():
     cp.add_argument("--save")
     cp.set_defaults(fn=cmd_compare)
 
+    # recommend
+    rec = sub.add_parser("recommend", help="run every strategy on your data & recommend the best one")
+    rec.add_argument("--documents", nargs="+", required=True)
+    rec.add_argument("--questions", required=True, help="comma-separated")
+    rec.add_argument("--references", help="comma-separated ground truth")
+    rec.add_argument("--strategies", help="comma-separated subset (default: all 18)")
+    rec.add_argument("--model", default="openai/gpt-4o-mini")
+    rec.add_argument("--embedding", default="openai/text-embedding-3-small")
+    rec.add_argument("--judge", default="openai/gpt-4o-mini")
+    rec.add_argument("--metrics", default="quality")
+    rec.add_argument("--quality-weight", type=float, default=0.7, dest="quality_weight")
+    rec.add_argument("--cost-weight", type=float, default=0.15, dest="cost_weight")
+    rec.add_argument("--latency-weight", type=float, default=0.15, dest="latency_weight")
+    rec.add_argument("--save")
+    rec.set_defaults(fn=cmd_recommend)
+
     return p
 
 
 def main():
+    # Make Unicode box-drawing / arrows in output safe on non-UTF-8 consoles
+    # (e.g. Windows cmd/PowerShell default to cp1252/cp437 and crash on '→', '·', '▶').
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
     args = build_parser().parse_args()
     try:
         args.fn(args)

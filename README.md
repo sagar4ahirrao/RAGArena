@@ -4,12 +4,14 @@
 
 ### Evaluate & benchmark every RAG strategy × LLM × embedding model — with one unified API
 
-**18 strategies · 100+ models · 25+ providers · 10 metrics · built-in web dashboard**
+**18 strategies · 100+ models · 20+ providers · 10 metrics · Next.js playground · Docker/PyPI/GitHub**
 
 [![PyPI](https://img.shields.io/pypi/v/ragarena?color=blue&logo=pypi)](https://pypi.org/project/ragarena/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue?logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen?logo=githubactions)]()
+
+📐 [Architecture & full feature reference](ARCHITECTURE.md) · 🐳 [Docker guide](DOCKER.md) · 📝 [Changelog](CHANGELOG.md)
 
 *One unified API across **every RAG strategy, LLM and embedding model**:*
 
@@ -104,7 +106,7 @@ result = compare(
         {"strategy": "naive",       "model": "openai/gpt-4o-mini"},
         {"strategy": "hybrid",      "model": "openai/gpt-4o-mini"},
         {"strategy": "hyde",        "model": "openai/gpt-4o-mini"},
-        {"strategy": "agentic",     "model": "groq/llama-3.1-70b-versatile"},
+        {"strategy": "agentic",     "model": "groq/openai/gpt-oss-120b"},
         {"strategy": "hybrid",      "model": "anthropic/claude-3-haiku-20240307"},
     ],
 )
@@ -113,6 +115,45 @@ print("WINNER:", result.best("faithfulness"))
 ```
 
 The document index is embedded **once** and shared across all configs — comparisons are fast and cheap.
+
+## 🎯 "Which strategy is best for MY data?"
+
+Don't want to hand-pick configs? `recommend_strategy()` runs **every** strategy (or a
+chosen subset) against your corpus and questions, then ranks them by a
+quality/cost/latency-weighted composite score:
+
+```python
+from ragarena import recommend_strategy
+
+rec = recommend_strategy(
+    questions=my_questions,
+    documents=my_docs,
+    reference_answers=ground_truth,
+    model="groq/openai/gpt-oss-20b",
+    embedding_model="google/gemini-embedding-001",
+    quality_weight=0.7, cost_weight=0.15, latency_weight=0.15,   # tune for your priorities
+)
+rec.print_summary()
+print(rec.best, rec.reasoning)
+```
+
+Also available as `ragarena recommend --documents ... --questions ...` (CLI) and
+`POST /api/recommend` (used by the **Recommend** tab in the playground UI).
+
+## 📄 Bring your own data — any format, any database
+
+```python
+from ragarena import parse_file, parse_dir, from_sql
+
+docs = parse_file("report.pdf")                 # pdf, docx, pptx, html, csv, json,
+docs += parse_file("notes.docx")                 # xlsx, md, txt, images, .sql, .sqlite
+docs += parse_dir("./knowledge_base/", recursive=True)   # walk a whole directory, mixed formats
+
+docs += from_sql("postgresql://user:pass@host/db",       # any SQLAlchemy-supported DB
+                  "SELECT id, title, body FROM articles")
+```
+
+`pip install "ragarena[ingest,sql]"` for the optional parser/DB-driver dependencies.
 
 ## 🖥 Web dashboard
 
@@ -137,7 +178,7 @@ completion(model="openai/gpt-4o-mini", ...)          # OpenAI
 completion(model="anthropic/claude-3-5-sonnet-20240620", ...)
 completion(model="google/gemini-1.5-flash", ...)
 completion(model="deepseek/deepseek-chat", ...)      # 97% cheaper than gpt-4o
-completion(model="groq/llama-3.1-8b-instant", ...)   # sub-second inference
+completion(model="groq/openai/gpt-oss-20b", ...)   # sub-second inference
 completion(model="ollama/llama3.1", ...)             # local & free
 completion(model="bedrock/meta.llama3-1-405b-instruct-v1:0", ...)
 ```
@@ -158,7 +199,7 @@ completion(model="bedrock/meta.llama3-1-405b-instruct-v1:0", ...)
 | `mistral/` | large, nemo, codestral | EU-hosted options |
 | `xai/` | grok-beta | real-time knowledge |
 | `deepseek/` | deepseek-chat, coder | extreme $/quality |
-| `groq/` | llama-3.1-70b @300tok/s | fastest hosted |
+| `groq/` | gpt-oss-120b @300tok/s | fastest hosted |
 | `together/`, `fireworks/`, `deepinfra/` | llama, qwen, mixtral | open-model hosts |
 | `perplexity/` | sonar-online | search-grounded |
 | `openrouter/` | 100+ gateway models | one key, all models |
@@ -317,7 +358,7 @@ Also available: `POST /api/compare` · `GET /api/catalog` · `GET /api/runs/{id}
 - [ ] Statistical significance tests (paired bootstrap) between configs
 - [ ] Chroma/Pinecone/Qdrant backends for `VectorIndex`
 - [ ] Graph RAG incremental updates + community-aware re-indexing
-- [ ] Multimodal parsing (PDF/images via MinerU) feeding `MultimodalDocument`
+- [ ] Cloud/blob storage ingestion (S3, Azure Blob, GCS) alongside local `parse_dir()`
 - [ ] Prompt-optimization loop (DSPy-style)
 - [ ] Team features: API keys, budgets, RBAC
 - [ ] CI mode: `ragarena ci --threshold faithfulness>=0.8` (fails PRs on regressions)

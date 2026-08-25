@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragarena"
-version = "0.2.1"
+version = "0.2.2"
 description = "⚡ Evaluate & benchmark RAG strategies, LLMs and embedding models across every popular provider — 18 strategies (incl. graph + multimodal), 100+ models, built-in dashboard."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -34,6 +34,7 @@ dependencies = [
     "uvicorn>=0.24.0",
     "jinja2>=3.1.0",
     "httpx>=0.24.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +50,17 @@ providers = [
     "boto3>=1.34.0",
     "google-generativeai>=0.5.0",
 ]
-all = ["ragarena[retrieval,local,providers]"]
+# multi-format document ingestion
+ingest = [
+    "pypdf>=4.0.0", "pdfplumber>=0.11.0", "python-docx>=1.1.0",
+    "python-pptx>=0.6.23", "beautifulsoup4>=4.12.0", "openpyxl>=3.1.0",
+    "markdown>=3.6", "PyYAML>=6.0",
+]
+# SQL / structured database ingestion (Postgres, MySQL, SQL Server, ...; sqlite3 is stdlib)
+sql = ["sqlalchemy>=2.0.0"]
+# popular benchmark datasets (SQuAD, HotpotQA, Natural Questions, TriviaQA, MS MARCO)
+datasets = ["datasets>=2.19.0"]
+all = ["ragarena[retrieval,local,providers,ingest,datasets,sql]"]
 dev = ["pytest>=7.4", "pytest-asyncio>=0.21", "black>=24.0", "ruff>=0.4", "mypy>=1.8"]
 
 [project.urls]
@@ -64,7 +75,7 @@ ragarena = "ragarena.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-ragarena = ["api/*.html"]
+ragarena = ["api/*.html", "api/ui_dist/**/*"]
 
 [tool.black]
 line-length = 100
