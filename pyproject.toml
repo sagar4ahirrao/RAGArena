@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rageval"
+version = "0.1.0"
+description = "⚡ Evaluate & benchmark RAG strategies, LLMs and embedding models across every popular provider — 13 strategies, 100+ models, built-in dashboard."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "RAGEval contributors" }]
+keywords = [
+    "rag", "retrieval", "llm", "evaluation", "benchmark",
+    "ragas", "embeddings", "vector-search", "ai", "nlp",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "openai>=1.0.0",
+    "pydantic>=2.0.0",
+    "numpy>=1.24.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "jinja2>=3.1.0",
+    "httpx>=0.24.0",
+]
+
+[project.optional-dependencies]
+# retrieval backends
+retrieval = ["faiss-cpu>=1.7.4", "rank-bm25>=0.2.2"]
+# local embeddings / rerankers
+local = ["sentence-transformers>=2.2.2", "torch>=2.1.0"]
+# extra provider SDKs
+providers = [
+    "anthropic>=0.30.0",
+    "cohere>=5.0.0",
+    "voyageai>=0.2.0",
+    "boto3>=1.34.0",
+    "google-generativeai>=0.5.0",
+]
+all = ["rageval[retrieval,local,providers]"]
+dev = ["pytest>=7.4", "pytest-asyncio>=0.21", "black>=24.0", "ruff>=0.4", "mypy>=1.8"]
+
+[project.urls]
+Homepage = "https://github.com/rageval/rageval"
+Repository = "https://github.com/rageval/rageval"
+Issues = "https://github.com/rageval/rageval/issues"
+
+[project.scripts]
+rageval = "rageval.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+rageval = ["api/*.html"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
