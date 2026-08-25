@@ -1,10 +1,10 @@
-"""
+﻿"""
 FastAPI serving layer + built-in web dashboard.
 
 Start everything with::
 
-    rageval serve                    # http://localhost:4000
-    rageval serve --port 8080
+    RagArena serve                    # http://localhost:4000
+    RagArena serve --port 8080
 
 Endpoints:
     GET  /                     → web dashboard
@@ -44,7 +44,7 @@ _RUNS: Dict[str, dict] = {}
 _JOBS: Dict[str, dict] = {}
 
 app = FastAPI(
-    title="RAGEval API",
+    title="RagArena API",
     description="Unified evaluation API for RAG strategies, LLMs and embedding models.",
     version="0.1.0",
 )
@@ -83,7 +83,7 @@ class CompareRequest(BaseModel):
 def dashboard():
     if _DASHBOARD.exists():
         return _DASHBOARD.read_text(encoding="utf-8")
-    return "<h1>RAGEval</h1><p>dashboard.html missing from install.</p>"
+    return "<h1>RagArena</h1><p>dashboard.html missing from install.</p>"
 
 
 @app.get("/health")
@@ -195,7 +195,7 @@ def get_run(run_id: str):
 
 def start_server(host: str = "0.0.0.0", port: int = 4000, reload: bool = False):
     import uvicorn
-    uvicorn.run("rageval.api.server:app", host=host, port=port,
+    uvicorn.run("RagArena.api.server:app", host=host, port=port,
                 reload=False, log_level="info")
 
 

@@ -1,10 +1,10 @@
-"""
-RAGEval CLI.
+﻿"""
+RagArena CLI.
 
-    rageval serve                          → web dashboard at localhost:4000
-    rageval models list [--provider X]     → browse 100+ model catalog
-    rageval run --strategy hybrid ...      → CLI evaluation
-    rageval compare --configs c1.yaml ...  → head-to-head benchmark
+    RagArena serve                          → web dashboard at localhost:4000
+    RagArena models list [--provider X]     → browse 100+ model catalog
+    RagArena run --strategy hybrid ...      → CLI evaluation
+    RagArena compare --configs c1.yaml ...  → head-to-head benchmark
 """
 from __future__ import annotations
 
@@ -102,12 +102,12 @@ def cmd_compare(args):
 def cmd_serve(args):
     from .api.server import start_server
     url = f"http://localhost:{args.port}"
-    print(f"\n  ⚡ RAGEval dashboard → {url}\n")
+    print(f"\n  ⚡ RagArena dashboard → {url}\n")
     start_server(host=args.host, port=args.port)
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="rageval",
+    p = argparse.ArgumentParser(prog="RagArena",
                                 description="⚡ RAG strategy & model evaluation framework")
     sub = p.add_subparsers(dest="command", required=True)
 

@@ -1,20 +1,20 @@
-<div align="center">
+﻿<div align="center">
 
-# ⚡ RAGEval
+# ⚡ RagArena
 
 ### Evaluate & benchmark every RAG strategy × LLM × embedding model — with one unified API
 
 **13 strategies · 100+ models · 25+ providers · 10 metrics · built-in web dashboard**
 
-[![PyPI](https://img.shields.io/pypi/v/rageval?color=blue&logo=pypi)](https://pypi.org/project/rageval/)
+[![PyPI](https://img.shields.io/pypi/v/RagArena?color=blue&logo=pypi)](https://pypi.org/project/RagArena/)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue?logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen?logo=githubactions)]()
 
-*Like [LiteLLM](https://github.com/BerriAI/litellm) unified LLM calls, RAGEval unifies **RAG evaluation**:*
+*Like [LiteLLM](https://github.com/BerriAI/litellm) unified LLM calls, RagArena unifies **RAG evaluation**:*
 
 ```python
-from rageval import evaluate
+from RagArena import evaluate
 
 evaluate(questions=[...], documents=[...],
          strategy="hybrid",                      # any of 13 strategies
@@ -27,15 +27,15 @@ evaluate(questions=[...], documents=[...],
 
 ---
 
-## Why RAGEval?
+## Why RagArena?
 
 Choosing a RAG stack is guesswork today. *"Is hybrid retrieval actually better than naive for
 my data? Is GPT-4o worth 17× the price of GPT-4o-mini for answer faithfulness? Do Voyage-3
 embeddings beat OpenAI's on my legal corpus?"*
 
-**RAGEval turns those guesses into a leaderboard.**
+**RagArena turns those guesses into a leaderboard.**
 
-| | Ragas | DeepEval | TruLens | **RAGEval** |
+| | Ragas | DeepEval | TruLens | **RagArena** |
 |---|---|---|---|---|
 | Score *your existing* pipeline | ✅ | ✅ | ✅ | ✅ |
 | **Run the pipelines themselves** (13 strategies) | ❌ | ❌ | ❌ | ✅ |
@@ -47,15 +47,15 @@ embeddings beat OpenAI's on my legal corpus?"*
 ## Install
 
 ```bash
-pip install rageval                 # core
-pip install "rageval[all]"          # + all provider SDKs
+pip install RagArena                 # core
+pip install "RagArena[all]"          # + all provider SDKs
 export OPENAI_API_KEY=sk-...        # only the providers you use
 ```
 
 ## 60-second quickstart
 
 ```python
-from rageval import evaluate
+from RagArena import evaluate
 
 docs = [
     {"text": "Retrieval-Augmented Generation (RAG) grounds LLM answers in your documents."},
@@ -80,7 +80,7 @@ report.save("report.json")
 ```
 
 ```
-╭─ RAGEval · hybrid · openai/gpt-4o-mini
+╭─ RagArena · hybrid · openai/gpt-4o-mini
 ├─ embedding : openai/text-embedding-3-small
 ├─ samples   : 2   wall time 6.4s
 ├──────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ report.save("report.json")
 ## 🏆 Find the best strategy/model in one call
 
 ```python
-from rageval import compare
+from RagArena import compare
 
 result = compare(
     questions=my_questions,
@@ -117,7 +117,7 @@ The document index is embedded **once** and shared across all configs — compar
 ## 🖥 Web dashboard
 
 ```bash
-rageval serve            # → http://localhost:4000
+RagArena serve            # → http://localhost:4000
 ```
 
 - **Overview** — run history & framework stats
@@ -131,7 +131,7 @@ rageval serve            # → http://localhost:4000
 Models are addressed as `provider/name`:
 
 ```python
-from rageval import completion
+from RagArena import completion
 
 completion(model="openai/gpt-4o-mini", ...)          # OpenAI
 completion(model="anthropic/claude-3-5-sonnet-20240620", ...)
@@ -179,10 +179,10 @@ completion(model="bedrock/meta.llama3-1-405b-instruct-v1:0", ...)
 Browse everything from the CLI:
 
 ```bash
-rageval models list                       # all 100+
-rageval models list --modality embedding  # embeddings only
-rageval models providers                  # provider summary
-rageval strategies                        # the 13 strategies
+RagArena models list                       # all 100+
+RagArena models list --modality embedding  # embeddings only
+RagArena models providers                  # provider summary
+RagArena strategies                        # the 13 strategies
 ```
 
 ## 🧪 The 13 built-in strategies
@@ -220,9 +220,9 @@ Any model can be the judge: `judge_model="anthropic/claude-3-haiku-20240307"`.
 Already have a RAG system? Score it directly:
 
 ```python
-from rageval import VectorIndex
-from rageval.engine import EvalSample, MetricContext
-from rageval.metrics import resolve_metrics
+from RagArena import VectorIndex
+from RagArena.engine import EvalSample, MetricContext
+from RagArena.metrics import resolve_metrics
 
 # ...run YOUR pipeline to get answer + chunks...
 sample = EvalSample(question=q, reference_answer=gt,
@@ -254,7 +254,7 @@ Also available: `POST /api/compare` · `GET /api/catalog` · `GET /api/runs/{id}
 - [ ] Chroma/Pinecone/Qdrant backends for `VectorIndex`
 - [ ] Prompt-optimization loop (DSPy-style)
 - [ ] Team features: API keys, budgets, RBAC
-- [ ] CI mode: `rageval ci --threshold faithfulness>=0.8` (fails PRs on regressions)
+- [ ] CI mode: `RagArena ci --threshold faithfulness>=0.8` (fails PRs on regressions)
 
 ## Contributing
 
@@ -262,7 +262,7 @@ PRs welcome! `pip install -e ".[dev]" && pytest`. Please read `CONTRIBUTING.md`.
 
 ## License
 
-MIT © RAGEval contributors
+MIT © RagArena contributors
 
 <div align="center">
 <sub>Built for developers tired of guessing. Star ⭐ if it saved you a benchmark week.</sub>

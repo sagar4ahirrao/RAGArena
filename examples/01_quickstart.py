@@ -1,4 +1,4 @@
-"""
+﻿"""
 End-to-end example: find the best strategy for YOUR documents.
 
 Prereqs:
@@ -7,7 +7,7 @@ Prereqs:
 Run:
     python examples/01_quickstart.py
 """
-from rageval import evaluate, compare
+from RagArena import evaluate, compare
 
 # ── 1. Your knowledge base ────────────────────────────────────────────────────
 DOCS = [

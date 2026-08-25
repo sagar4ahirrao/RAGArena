@@ -1,10 +1,10 @@
-"""
-⚡ RAGEval — evaluate & benchmark RAG strategies, LLMs and embedding models
+﻿"""
+⚡ RagArena — evaluate & benchmark RAG strategies, LLMs and embedding models
 across every popular provider with one unified API.
 
 LiteLLM-style quickstart::
 
-    from rageval import evaluate, compare
+    from RagArena import evaluate, compare
 
     report = evaluate(
         questions=["What is RAG?"],
@@ -34,7 +34,7 @@ from .index import VectorIndex, TextChunker, chunk_text
 from .engine import evaluate, compare, EvaluationReport, ComparisonResult
 
 __version__ = "0.1.0"
-__author__ = "RAGEval contributors"
+__author__ = "RagArena contributors"
 
 __all__ = [
     # one-liner APIs

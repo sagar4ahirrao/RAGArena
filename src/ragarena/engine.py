@@ -1,9 +1,9 @@
-"""
+﻿"""
 Evaluation engine — `evaluate()` and `compare()` one-liners.
 
 LiteLLM-style ergonomics::
 
-    from rageval import evaluate
+    from RagArena import evaluate
 
     result = evaluate(
         questions=["What is RAG?"],
@@ -102,7 +102,7 @@ class EvaluationReport:
 
     def print_summary(self) -> None:
         r = self.summary()
-        print(f"\n╭─ RAGEval · {self.strategy} · {self.model}")
+        print(f"\n╭─ RagArena · {self.strategy} · {self.model}")
         print(f"├─ embedding : {self.embedding_model}")
         print(f"├─ samples   : {len(self.samples)}   wall time {self.wall_time_s:.1f}s")
         print("├" + "─" * 58)
@@ -138,7 +138,7 @@ def evaluate(
         documents: raw docs ``{"text": ..., "metadata": {...}}`` (chunked+embedded automatically).
         index: prebuilt VectorIndex (mutually exclusive with documents).
         reference_answers: ground truth per question (enables recall/correctness).
-        strategy: any of 13 strategies (see rageval.list_strategies()).
+        strategy: any of 13 strategies (see RagArena.list_strategies()).
         model: generator LLM as 'provider/name'.
         embedding_model: retriever embeddings as 'provider/name'.
         judge_model: LLM-as-judge for faithfulness/relevance metrics.

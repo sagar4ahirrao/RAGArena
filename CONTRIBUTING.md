@@ -1,11 +1,11 @@
-# Contributing to RAGEval
+﻿# Contributing to RagArena
 
 Thanks for helping make RAG evaluation less guesswork! 🎯
 
 ## Dev setup
 
 ```bash
-git clone https://github.com/rageval/rageval && cd rageval
+git clone https://github.com/RagArena/RagArena && cd RagArena
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[all,dev]"
 pre-commit install                                    # if hooks configured
@@ -15,7 +15,7 @@ pytest                                                # run tests
 ## Project layout
 
 ```
-src/rageval/
+src/RagArena/
 ├── catalog.py      # model registry: providers, pricing, context windows
 ├── router.py       # unified completion()/embedding()/rerank() across providers
 ├── strategies.py   # 13 RAG pipelines (all implement Strategy.run())
@@ -23,7 +23,7 @@ src/rageval/
 ├── index.py        # VectorIndex: chunking, embedding, search
 ├── engine.py       # evaluate() / compare() orchestration
 ├── api/            # FastAPI server + dashboard.html SPA
-└── cli.py          # rageval serve | models | run | compare
+└── cli.py          # RagArena serve | models | run | compare
 ```
 
 ## Adding a model

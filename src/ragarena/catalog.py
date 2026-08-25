@@ -1,11 +1,11 @@
-"""
-RAGEval Model Catalog — every popular LLM, embedding, reranker & vector store.
+﻿"""
+RagArena Model Catalog — every popular LLM, embedding, reranker & vector store.
 
 Models are addressed as ``provider/model-name`` exactly like litellm::
 
-    rageval.completion(model="openai/gpt-4o-mini", messages=[...])
-    rageval.completion(model="anthropic/claude-3-5-sonnet-20240620", ...)
-    rageval.embedding(model="voyage/voyage-3", input=["hello"])
+    RagArena.completion(model="openai/gpt-4o-mini", messages=[...])
+    RagArena.completion(model="anthropic/claude-3-5-sonnet-20240620", ...)
+    RagArena.embedding(model="voyage/voyage-3", input=["hello"])
 
 Pricing is USD per 1M tokens. ``context`` is max input context window.
 """
@@ -328,7 +328,7 @@ class UnknownModelError(KeyError):
     def __init__(self, model_id: str):
         super().__init__(
             f"Unknown model '{model_id}'. "
-            f"Browse the catalog: `rageval models list`, or call rageval.list_models()."
+            f"Browse the catalog: `RagArena models list`, or call RagArena.list_models()."
         )
 
 

@@ -1,9 +1,9 @@
-"""
+﻿"""
 Unified model router — one API, every provider.
 
 Works exactly like litellm::
 
-    from rageval import completion, embedding
+    from RagArena import completion, embedding
 
     resp = completion(model="openai/gpt-4o-mini", messages=[{"role":"user","content":"hi"}])
     vecs = embedding(model="voyage/voyage-3", input=["hello world"])
