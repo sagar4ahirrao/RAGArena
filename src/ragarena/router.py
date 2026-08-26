@@ -8,15 +8,15 @@ Works::
     resp = completion(model="openai/gpt-4o-mini", messages=[{"role":"user","content":"hi"}])
     vecs = embedding(model="voyage/voyage-3", input=["hello world"])
 
-Any OpenAI-compatible provider is called through the OpenAI SDK with a
-base-url override; Anthropic/Cohere/Google/Bedrock use their native SDKs.
+completion() is backed by LiteLLM, which unifies auth/request-shaping across
+100+ providers; ragarena still resolves API keys itself (for the
+MissingAPIKeyError UX) and computes cost from its own catalog pricing.
+embedding()/rerank() keep direct SDK integrations (voyage/cohere/local HF).
 """
 from __future__ import annotations
 
 import os
 import time
-import base64
-import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -170,31 +170,48 @@ def completion(
     provider, model_name = parse_model_id(model)
     info = get_model(model)
 
-    # ── Native SDK providers ────────────────────────────────────────────────
-    if provider == "anthropic":
-        return _anthropic_completion(model, model_name, messages, api_key, temperature, max_tokens or info.max_output_tokens)
-    if provider in ("cohere",) and kwargs.get("native"):
-        return _cohere_completion(model, model_name, messages, api_key, temperature, max_tokens)
-    if provider == "bedrock":
-        return _bedrock_completion(model, model_name, messages, temperature, max_tokens)
-    if provider == "azure":
-        return _azure_completion(model, model_name, messages, api_key, api_base, temperature, max_tokens)
+    # Azure AI Foundry's "models/chat/completions" REST surface is bespoke
+    # enough (Bearer token, no fixed deployment) that it's kept as a direct
+    # REST call rather than mapped through LiteLLM.
     if provider == "azure_foundry":
         return _azure_foundry_completion(model, model_name, messages, api_key, api_base, temperature, max_tokens)
 
-    # ── Everything else is OpenAI-compatible (incl. gemini via AI studio) ──
-    client = _get_openai_compatible_client(provider, api_key, api_base)
+    key = _resolve_api_key(provider, api_key)
+    cfg = PROVIDERS.get(provider)
+    if not key and (cfg is None or cfg.requires_key):
+        raise MissingAPIKeyError(provider)
+
+    litellm_model, extra = _litellm_params(provider, model_name, api_base, key)
+    import litellm
+    litellm.suppress_debug_info = True
+
+    token_limit = max_tokens or info.max_output_tokens
+    call_kwargs: Dict[str, Any] = {
+        "model": litellm_model, "messages": messages, "temperature": temperature,
+        "max_tokens": token_limit, "timeout": timeout, **extra,
+    }
+
     t0 = time.perf_counter()
-    try:
-        resp = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            timeout=timeout,
-        )
-    except Exception as e:
-        raise RuntimeError(f"[{model}] request failed: {e}") from e
+    resp = None
+    last_err: Optional[Exception] = None
+    # newer "reasoning" model deployments (o1/o3/gpt-5-style, etc.) often
+    # reject standard params like max_tokens/temperature — retry stripping
+    # whichever single param the provider names, up to a few attempts.
+    for _ in range(4):
+        try:
+            resp = litellm.completion(**call_kwargs)
+            break
+        except Exception as e:
+            last_err = e
+            msg = str(e)
+            if "max_tokens" in msg and "max_tokens" in call_kwargs:
+                call_kwargs["max_completion_tokens"] = call_kwargs.pop("max_tokens")
+            elif "temperature" in msg and "temperature" in call_kwargs:
+                call_kwargs.pop("temperature")
+            else:
+                raise RuntimeError(f"[{model}] request failed: {e}") from e
+    if resp is None:
+        raise RuntimeError(f"[{model}] request failed: {last_err}") from last_err
     latency = time.perf_counter() - t0
 
     choice = resp.choices[0]
@@ -218,126 +235,49 @@ def completion(
     )
 
 
-def _anthropic_completion(model_id, model_name, messages, api_key, temperature, max_tokens) -> ModelResponse:
-    import anthropic
-    client = anthropic.Anthropic(api_key=_resolve_api_key("anthropic", api_key))
-    system = "\n".join(m["content"] for m in messages if m["role"] == "system") or ""
-    chat = [m for m in messages if m["role"] != "system"]
-
-    t0 = time.perf_counter()
-    resp = client.messages.create(
-        model=model_name, system=system, messages=chat,
-        temperature=temperature, max_tokens=max_tokens,
-    )
-    latency = time.perf_counter() - t0
-
-    text = "".join(block.text for block in resp.content if hasattr(block, "text"))
-    usage = Usage(resp.usage.input_tokens, resp.usage.output_tokens,
-                  resp.usage.input_tokens + resp.usage.output_tokens)
-    from .catalog import estimate_cost
-    usage.cost_usd = estimate_cost(model_id, usage.prompt_tokens, usage.completion_tokens)
-    return ModelResponse(text=text, model=model_id, usage=usage, latency_s=latency)
+# Provider slugs where our catalog's name differs from LiteLLM's own prefix
+# convention (https://docs.litellm.ai/docs/providers). Anything not listed
+# here is passed through as "<provider>/<model_name>" unchanged — LiteLLM
+# uses the same "provider/model" shape we do for most providers.
+_LITELLM_PREFIX = {
+    "google": "gemini",
+    "together": "together_ai",
+    "fireworks": "fireworks_ai",
+    "nvidia_nim": "nvidia_nim",
+    "vertex": "vertex_ai",
+}
+# Self-hosted / custom-endpoint providers: reached via LiteLLM's generic
+# OpenAI-compatible route, pointed at our own base_url/env override.
+_SELF_HOSTED = {"ollama", "vllm", "lmstudio", "llamacpp", "custom_openai"}
 
 
-def _cohere_completion(model_id, model_name, messages, api_key, temperature, max_tokens) -> ModelResponse:
-    import cohere
-    client = cohere.ClientV2(_resolve_api_key("cohere", api_key))
-    t0 = time.perf_counter()
-    resp = client.chat(model=model_name, messages=messages, temperature=temperature)
-    latency = time.perf_counter() - t0
-    text = resp.message.content[0].text if resp.message and resp.message.content else ""
-    u = resp.usage or {}
-    pt = getattr(getattr(u, "tokens", None), "input_tokens", 0) or 0
-    ct = getattr(getattr(u, "tokens", None), "output_tokens", 0) or 0
-    usage = Usage(pt, ct, pt + ct)
-    from .catalog import estimate_cost
-    usage.cost_usd = estimate_cost(model_id, pt, ct)
-    return ModelResponse(text=text, model=model_id, usage=usage, latency_s=latency)
+def _litellm_params(provider: str, model_name: str, api_base: Optional[str],
+                    key: Optional[str]) -> tuple[str, dict]:
+    """Map a ragarena (provider, model_name) pair to a LiteLLM model string
+    plus any extra kwargs (api_key/api_base/api_version) it needs."""
+    cfg = PROVIDERS.get(provider)
+    extra: Dict[str, Any] = {}
+    if key:
+        extra["api_key"] = key
 
+    if provider == "azure":
+        endpoint = (api_base or os.getenv("AZURE_OPENAI_ENDPOINT")
+                    or os.getenv("AZURE_ENDPOINT") or os.getenv("AZURE_API_BASE"))
+        if not endpoint:
+            raise RuntimeError("Azure requires AZURE_OPENAI_ENDPOINT (e.g. https://<resource>.services.ai.azure.com)")
+        extra["api_base"] = endpoint
+        extra["api_version"] = (os.getenv("AZURE_OPENAI_API_VERSION")
+                                or os.getenv("AZURE_API_VERSION") or "2024-05-01-preview")
+        return f"azure/{model_name}", extra
 
-def _bedrock_completion(model_id, model_name, messages, temperature, max_tokens) -> ModelResponse:
-    try:
-        import boto3
-    except ImportError as e:
-        raise RuntimeError("AWS Bedrock requires boto3: pip install boto3") from e
-    import re
+    if provider in _SELF_HOSTED:
+        extra["api_base"] = api_base or (cfg.base_url if cfg else None)
+        return f"openai/{model_name}", extra
 
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
-    client = boto3.client("bedrock-runtime", region_name=region)
-    service = model_name.split(".")[0]
-
-    system = "\n".join(m["content"] for m in messages if m["role"] == "system")
-    chat = [{"role": m["role"], "content": [{"type": "text", "text": m["content"]}]}
-            for m in messages if m["role"] != "system"]
-
-    if service == "anthropic":
-        body = json.dumps({"anthropic_version": "bedrock-2023-05-31",
-                           "max_tokens": max_tokens or 4096,
-                           "system": system, "messages": chat,
-                           "temperature": temperature})
-    elif service == "meta":
-        prompt_text = "\n\n".join(m["content"] for m in messages)
-        body = json.dumps({"prompt": prompt_text, "max_gen_len": max_tokens or 2048,
-                           "temperature": temperature})
-    else:  # titan / amazon
-        prompt_text = "\n\n".join(m["content"] for m in messages)
-        body = json.dumps({"inputText": prompt_text,
-                           "textGenerationConfig": {"maxTokenCount": max_tokens or 4096,
-                                                    "temperature": temperature}})
-
-    t0 = time.perf_counter()
-    resp = client.invoke_model(modelId=model_name, body=body)
-    latency = time.perf_counter() - t0
-    payload = json.loads(resp["body"].read())
-
-    if service == "anthropic":
-        text = "".join(b.get("text", "") for b in payload.get("content", []))
-        pt, ct = payload.get("usage", {}).get("input_tokens", 0), payload.get("usage", {}).get("output_tokens", 0)
-    elif service == "meta":
-        text = payload.get("generation", "")
-        pt = len(payload.get("prompt_token_count", 0) and [0] * payload["prompt_token_count"])
-        ct = len([0] * payload.get("generation_token_count", 0))
-    else:
-        results = payload.get("results", [{}])
-        text = results[0].get("outputText", "")
-        pt = results[0].get("inputTextTokenCount", 0)
-        ct = results[0].get("generationTokenCount", 0)
-
-    usage = Usage(pt, ct, pt + ct)
-    from .catalog import estimate_cost
-    usage.cost_usd = estimate_cost(model_id, pt, ct)
-    return ModelResponse(text=text, model=model_id, usage=usage, latency_s=latency)
-
-
-def _azure_completion(model_id, model_name, messages, api_key, api_base, temperature, max_tokens) -> ModelResponse:
-    """Azure OpenAI / Azure AI Foundry via the official AzureOpenAI client."""
-    from openai import AzureOpenAI
-
-    endpoint = (api_base or os.getenv("AZURE_OPENAI_ENDPOINT")
-                or os.getenv("AZURE_ENDPOINT"))
-    if not endpoint:
-        raise RuntimeError("Azure requires AZURE_OPENAI_ENDPOINT (e.g. https://<resource>.services.ai.azure.com)")
-    api_version = (os.getenv("AZURE_OPENAI_API_VERSION")
-                   or os.getenv("AZURE_API_VERSION") or "2024-05-01-preview")
-    key = _resolve_api_key("azure", api_key)
-    if not key:
-        raise RuntimeError("Azure requires AZURE_OPENAI_API_KEY")
-
-    client = AzureOpenAI(api_key=key, azure_endpoint=endpoint, api_version=api_version)
-    t0 = time.perf_counter()
-    resp = client.chat.completions.create(
-        model=model_name, messages=messages,
-        temperature=temperature, max_tokens=max_tokens or 2048,
-    )
-    latency = time.perf_counter() - t0
-    choice = resp.choices[0]
-    u = getattr(resp, "usage", None)
-    pt = getattr(u, "prompt_tokens", 0) or 0
-    ct = getattr(u, "completion_tokens", 0) or 0
-    usage = Usage(pt, ct, pt + ct)
-    usage.cost_usd = estimate_cost(model_id, pt, ct)
-    return ModelResponse(text=choice.message.content or "", model=model_id,
-                         usage=usage, latency_s=latency, finish_reason=choice.finish_reason)
+    if api_base:
+        extra["api_base"] = api_base
+    litellm_provider = _LITELLM_PREFIX.get(provider, provider)
+    return f"{litellm_provider}/{model_name}", extra
 
 
 def _azure_foundry_completion(model_id, model_name, messages, api_key, api_base, temperature, max_tokens) -> ModelResponse:

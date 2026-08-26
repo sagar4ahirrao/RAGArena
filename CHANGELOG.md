@@ -3,6 +3,29 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.2.4] — 2026-08-26
+
+`completion()` now routes through [LiteLLM](https://github.com/BerriAI/litellm)
+instead of hand-rolled per-provider SDK integrations.
+
+### Changed
+- Removed the bespoke `_anthropic_completion`/`_cohere_completion`/
+  `_bedrock_completion`/`_azure_completion` implementations (~180 lines) in
+  favor of `litellm.completion()`, which already normalizes auth and request
+  shape across 100+ providers. ragarena still does its own upfront API-key
+  resolution (for the `MissingAPIKeyError` UX) and cost estimation (from its
+  own catalog pricing, not LiteLLM's), so behavior for callers is unchanged.
+  Azure AI Foundry keeps its direct REST implementation (bespoke Bearer-token
+  surface, no fixed deployment) rather than going through LiteLLM.
+- Added automatic retry-with-param-adjustment for newer "reasoning" model
+  deployments (o1/o3/gpt-5-style) that reject `max_tokens` (need
+  `max_completion_tokens`) or non-default `temperature` — verified live
+  against an Azure `gpt-5.5` deployment.
+
+Verified end-to-end against Groq, Google Gemini, Azure OpenAI, and
+OpenRouter (the 4 providers with live credentials available), plus all 18
+strategies re-run against Groq + Gemini with zero regressions.
+
 ## [0.2.3] — 2026-08-26
 
 Real browser testing (Playwright) uncovered and fixed critical playground bugs;
@@ -170,6 +193,7 @@ First public release. ⚡
   `GET /api/runs/{id}`, `GET /health`.
 - Examples, contributing guide, MIT license.
 
+[0.2.4]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.4
 [0.2.3]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.3
 [0.2.2]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.2
 [0.2.0]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.0
