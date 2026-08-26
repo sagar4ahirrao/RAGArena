@@ -199,6 +199,7 @@ def run_compare(req: CompareRequest):
                 "kind": "comparison",
                 "matrix": cmp_res.matrix,
                 "runs": {k: v.to_dict() for k, v in cmp_res.runs.items()},
+                "errors": cmp_res.errors,
                 "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
             _RUNS[run_id] = data

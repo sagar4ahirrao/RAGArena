@@ -17,12 +17,12 @@ Quickstart::
     report.print_summary()
 """
 from .catalog import (
-    ModelInfo, ProviderConfig,
+    ModelInfo, ProviderConfig, UnknownModelError,
     CHAT_MODELS, EMBEDDING_MODELS, RERANK_MODELS, VECTOR_STORES,
     PROVIDERS, EMBEDDING_PROVIDERS,
     get_model, has_model, list_models, list_providers, estimate_cost,
 )
-from .router import completion, embedding, rerank, ModelResponse, EmbeddingResponse, Usage
+from .router import completion, embedding, rerank, ModelResponse, EmbeddingResponse, Usage, MissingAPIKeyError
 from .strategies import (
     Strategy, Chunk, StrategyResult, STRATEGIES, get_strategy,
     NaiveRAG, HybridRAG, MultiQueryRAG, HyDERAG, RerankRAG, RAGFusion,
@@ -45,6 +45,7 @@ __all__ = [
     "completion", "embedding", "rerank", "evaluate", "compare", "recommend_strategy",
     # catalog
     "list_models", "list_providers", "get_model", "has_model", "estimate_cost",
+    "UnknownModelError", "MissingAPIKeyError",
     "CHAT_MODELS", "EMBEDDING_MODELS", "RERANK_MODELS", "VECTOR_STORES",
     "PROVIDERS", "EMBEDDING_PROVIDERS", "ModelInfo",
     # strategies

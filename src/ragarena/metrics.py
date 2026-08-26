@@ -104,8 +104,7 @@ class ContextRecall(BaseMetric):
         if not s.reference_answer:
             return MetricResult(self.name, 0.0, {"error": "reference required"})
         covered = _keyword_overlap(s.reference_answer, s.context)
-        return MetricResult(self.name, min(covered / 0.5, 1.0),
-                            {"overlap": covered})
+        return MetricResult(self.name, covered, {"overlap": covered})
 
 
 class HitRate(BaseMetric):

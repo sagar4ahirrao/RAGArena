@@ -27,10 +27,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
-from .catalog import get_model
+from .catalog import get_model, UnknownModelError
 from .index import VectorIndex, TextChunker
 from .metrics import EvalSample, MetricContext, MetricResult, resolve_metrics, METRICS
-from .router import completion, Usage
+from .router import completion, Usage, MissingAPIKeyError
 from .strategies import Chunk, StrategyResult, get_strategy, STRATEGIES
 
 
@@ -184,6 +184,8 @@ def evaluate(
     for q, ref in zip(questions, refs):
         try:
             sr: StrategyResult = strat.run(q, index, model, index.embedding_model)
+        except (MissingAPIKeyError, UnknownModelError):
+            raise   # unrecoverable config error — fail fast instead of repeating per question
         except Exception as e:
             sample = SampleResult(
                 question=q, reference_answer=ref, answer=f"<ERROR> {e}",
@@ -232,6 +234,7 @@ def evaluate(
 class ComparisonResult:
     runs: Dict[str, EvaluationReport] = field(default_factory=dict)
     matrix: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    errors: Dict[str, str] = field(default_factory=dict)   # config name -> failure reason
 
     def best(self, metric: str = "faithfulness") -> Optional[str]:
         scores = {name: vals.get(metric) for name, vals in self.matrix.items()}
@@ -264,6 +267,7 @@ class ComparisonResult:
             json.dump({
                 "matrix": self.matrix,
                 "runs": {k: v.to_dict() for k, v in self.runs.items()},
+                "errors": self.errors,
             }, f, indent=2)
 
 
@@ -296,16 +300,23 @@ def compare(
     for cfg in configs:
         name = f"{cfg.get('strategy', 'naive')}·{cfg.get('model', 'openai/gpt-4o-mini')}"
         _print(f"▶ evaluating {name} …")
-        report = evaluate(
-            questions=questions,
-            index=shared_index,                      # reuse!
-            reference_answers=reference_answers,
-            strategy=cfg.get("strategy", "naive"),
-            strategy_config=cfg.get("strategy_config"),
-            model=cfg.get("model", "openai/gpt-4o-mini"),
-            judge_model=cfg.get("judge_model", cfg.get("model", "openai/gpt-4o-mini")),
-            metrics=metrics,
-        )
+        try:
+            report = evaluate(
+                questions=questions,
+                index=shared_index,                      # reuse!
+                reference_answers=reference_answers,
+                strategy=cfg.get("strategy", "naive"),
+                strategy_config=cfg.get("strategy_config"),
+                model=cfg.get("model", "openai/gpt-4o-mini"),
+                judge_model=cfg.get("judge_model", cfg.get("model", "openai/gpt-4o-mini")),
+                metrics=metrics,
+            )
+        except Exception as e:
+            # one bad config (missing key, unknown model, ...) shouldn't discard
+            # results already computed for the other configs in this comparison
+            _print(f"  ✗ {name} failed: {e}")
+            result.errors[name] = str(e)
+            continue
         result.runs[name] = report
         result.matrix[name] = report.summary()
 
@@ -335,6 +346,7 @@ class RecommendationResult:
             "best": self.best,
             "reasoning": self.reasoning,
             "matrix": self.comparison.matrix,
+            "errors": self.comparison.errors,
         }
 
     def print_summary(self) -> None:

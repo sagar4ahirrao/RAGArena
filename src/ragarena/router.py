@@ -92,20 +92,36 @@ class EmbeddingResponse:
 
 _client_cache: Dict[tuple, OpenAI] = {}
 
+_KEY_ENV_ALIASES = {
+    "google": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+    "xai": ["XAI_API_KEY", "GROK_API_KEY"],
+    "huggingface": ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
+    "azure": ["AZURE_API_KEY", "AZURE_OPENAI_API_KEY"],
+    "vertex": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+}
+
+
+class MissingAPIKeyError(RuntimeError):
+    """Raised when a provider needs credentials and none were found in the environment."""
+
+    def __init__(self, provider: str):
+        cfg = PROVIDERS.get(provider) or EMBEDDING_PROVIDERS.get(provider)
+        env_names = ([cfg.api_key_env] if cfg and cfg.api_key_env else []) + _KEY_ENV_ALIASES.get(provider, [])
+        env_names = [e for e in dict.fromkeys(env_names) if e]  # dedupe, drop empties
+        hint = (f"set one of: {', '.join(env_names)}" if env_names
+                else "check ragarena.list_providers() for the expected credential")
+        super().__init__(
+            f"No API key found for provider '{provider}' — {hint} "
+            f"(as an environment variable, in a .env file, or passed as api_key=...)."
+        )
+
 
 def _resolve_api_key(provider: str, api_key: Optional[str]) -> Optional[str]:
     if api_key:
         return api_key
     cfg = PROVIDERS.get(provider)
     env = cfg.api_key_env if cfg else ""
-    aliases = {
-        "google": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-        "xai": ["XAI_API_KEY", "GROK_API_KEY"],
-        "huggingface": ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
-        "azure": ["AZURE_API_KEY", "AZURE_OPENAI_API_KEY"],
-        "vertex": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
-    }
-    for candidate in [env] + aliases.get(provider, []):
+    for candidate in [env] + _KEY_ENV_ALIASES.get(provider, []):
         if candidate and os.getenv(candidate):
             return os.getenv(candidate)
     return None
@@ -114,7 +130,9 @@ def _resolve_api_key(provider: str, api_key: Optional[str]) -> Optional[str]:
 def _get_openai_compatible_client(provider: str, api_key: Optional[str], base_url_override: Optional[str] = None) -> OpenAI:
     cfg = PROVIDERS[provider]
     resolved_key = _resolve_api_key(provider, api_key)
-    key = resolved_key or "sk-no-key-required"   # ollama/vllm need a dummy
+    if not resolved_key and cfg.requires_key:
+        raise MissingAPIKeyError(provider)
+    key = resolved_key or "sk-no-key-required"   # ollama/vllm/etc. don't need a real key
     cache_key = (provider, key, base_url_override)
     if cache_key not in _client_cache:
         _client_cache[cache_key] = OpenAI(
