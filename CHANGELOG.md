@@ -3,6 +3,46 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.2.3] — 2026-08-26
+
+Real browser testing (Playwright) uncovered and fixed critical playground bugs;
+light/dark theme; usability and metric-accuracy fixes.
+
+### Fixed
+- **Critical**: `GET /api/runs/{id}` never returned `status: "done"` for a
+  completed run, so the Playground/Compare/Recommend UI's poll loop
+  (`s.status === "done"`) was never satisfied — every browser-driven
+  evaluation appeared to hang forever ("...judging… (undefined)") until it
+  eventually timed out. Found only via a real headless-browser test; curl/API
+  testing alone couldn't surface it since the JSON was otherwise valid.
+- FastAPI's UI catch-all route only matched single-segment paths and only
+  ever served `index.html`, so Next's client-router prefetch requests
+  (`/playground/index.txt`, etc.) 404'd on every single page load. Rewrote to
+  a proper `{path:path}` catch-all serving any static-export file.
+- Missing API key: previously fell through to a dummy key and surfaced a
+  confusing raw 401 from the provider. New `MissingAPIKeyError` names the
+  exact environment variable(s) to set, everywhere (Python API, CLI, REST API).
+- `evaluate()` now fails fast on `MissingAPIKeyError`/`UnknownModelError`
+  instead of silently repeating the same failure for every question in the
+  batch; `compare()` now records a bad config's failure in a new
+  `ComparisonResult.errors` dict and keeps the results already computed for
+  the other configs, instead of crashing the whole comparison.
+- `ContextRecall` rescaled raw keyword overlap by an undocumented `/0.5`,
+  inflating a 50% overlap into a reported "1.0 perfect recall" — now reports
+  the raw overlap fraction.
+- Next.js bumped 14.2.5 → 14.2.35 and postcss pinned via `overrides`,
+  clearing the critical/high npm audit findings.
+
+### Added
+- **"Get code" panel** on the Playground page — generates a ready-to-run
+  Python, cURL, or JavaScript snippet reproducing the current strategy/model/
+  corpus configuration.
+- **Light / dark theme toggle** (system → light → dark), CSS-variable-driven
+  so it applies across every page without per-component dark: variants.
+- `scripts_browser_test.py` / `scripts_browser_e2e.py` — real Playwright
+  browser tests (page loads + console-error checks + a full interactive
+  playground run), not just API-level curl checks.
+
 ## [0.2.2] — 2026-08-25
 
 Professional Next.js playground, multi-format ingestion, benchmark datasets, strategy
@@ -130,6 +170,7 @@ First public release. ⚡
   `GET /api/runs/{id}`, `GET /health`.
 - Examples, contributing guide, MIT license.
 
+[0.2.3]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.3
 [0.2.2]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.2
 [0.2.0]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.1.0

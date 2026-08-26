@@ -52,7 +52,7 @@ _JOBS: Dict[str, dict] = {}
 app = FastAPI(
     title="RagArena API",
     description="Unified evaluation API for RAG strategies, LLMs and embedding models.",
-    version="0.2.2",
+    version="0.2.3",
 )
 
 app.add_middleware(
