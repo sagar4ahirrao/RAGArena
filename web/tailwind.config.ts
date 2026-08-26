@@ -3,7 +3,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: { 900: "#0a0a0f", 800: "#111118", 700: "#1a1a24", 600: "#23232f" },
+        ink: {
+          900: "rgb(var(--ink-900) / <alpha-value>)",
+          800: "rgb(var(--ink-800) / <alpha-value>)",
+          700: "rgb(var(--ink-700) / <alpha-value>)",
+          600: "rgb(var(--ink-600) / <alpha-value>)",
+        },
+        fg: {
+          DEFAULT: "rgb(var(--fg) / <alpha-value>)",
+          muted: "rgb(var(--fg-muted) / <alpha-value>)",
+        },
+        line: "rgb(var(--line) / <alpha-value>)",
         brand: { 400: "#7c8cff", 500: "#5b6cff", 600: "#4a55e0" },
         accent: { 400: "#36e0c0", 500: "#1fc7a8" },
       },

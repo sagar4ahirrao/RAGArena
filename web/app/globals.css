@@ -3,41 +3,89 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  /* light palette (default tokens) */
+  --ink-900: 255 255 255;   /* page background */
+  --ink-800: 248 249 252;   /* card background */
+  --ink-700: 238 240 245;   /* chip/hover background */
+  --ink-600: 227 230 238;   /* stronger surface */
+  --fg: 20 22 30;           /* primary text */
+  --fg-muted: 100 105 120;  /* secondary text */
+  --line: 20 22 30;         /* border (used with low alpha) */
+  --line-alpha: 0.1;
+  --glow-1: 91, 108, 255;
+  --glow-2: 31, 199, 168;
+  --glow-a1: 0.06;
+  --glow-a2: 0.05;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ink-900: 10 10 15;
+    --ink-800: 17 17 24;
+    --ink-700: 26 26 36;
+    --ink-600: 35 35 47;
+    --fg: 231 231 239;
+    --fg-muted: 138 147 166;
+    --line: 255 255 255;
+    --line-alpha: 0.1;
+    --glow-a1: 0.12;
+    --glow-a2: 0.1;
+  }
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
+  --ink-900: 10 10 15;
+  --ink-800: 17 17 24;
+  --ink-700: 26 26 36;
+  --ink-600: 35 35 47;
+  --fg: 231 231 239;
+  --fg-muted: 138 147 166;
+  --line: 255 255 255;
+  --line-alpha: 0.1;
+  --glow-a1: 0.12;
+  --glow-a2: 0.1;
 }
 
 html,
 body {
-  background: radial-gradient(1200px 600px at 80% -10%, rgba(91, 108, 255, 0.12), transparent 60%),
-    radial-gradient(900px 500px at -10% 10%, rgba(31, 199, 168, 0.1), transparent 55%),
-    #0a0a0f;
-  color: #e7e7ef;
+  background: radial-gradient(1200px 600px at 80% -10%, rgba(var(--glow-1), var(--glow-a1)), transparent 60%),
+    radial-gradient(900px 500px at -10% 10%, rgba(var(--glow-2), var(--glow-a2)), transparent 55%),
+    rgb(var(--ink-900));
+  color: rgb(var(--fg));
   min-height: 100%;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a3a transparent;
+  scrollbar-color: rgba(var(--line), 0.3) transparent;
 }
 
 .card {
-  @apply rounded-2xl border border-white/10 bg-ink-800/70 backdrop-blur p-4 shadow-glow;
+  @apply rounded-2xl border bg-ink-800/70 backdrop-blur p-4 shadow-glow;
+  border-color: rgba(var(--line), var(--line-alpha));
 }
 .chip {
-  @apply inline-flex items-center gap-1 rounded-full border border-white/10 bg-ink-700 px-3 py-1 text-xs text-slate-300 transition;
+  @apply inline-flex items-center gap-1 rounded-full border bg-ink-700 px-3 py-1 text-xs text-fg-muted transition;
+  border-color: rgba(var(--line), var(--line-alpha));
 }
 .chip-on {
-  @apply border-brand-500/60 bg-brand-500/15 text-white;
+  @apply border-brand-500/60 bg-brand-500/15 text-fg;
 }
 .btn {
   @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-40;
 }
 .btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:bg-ink-700;
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm text-fg-muted transition hover:bg-ink-700;
+  border-color: rgba(var(--line), var(--line-alpha));
 }
 .input {
-  @apply w-full rounded-xl border border-white/10 bg-ink-900/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand-500/60;
+  @apply w-full rounded-xl border bg-ink-900/60 px-3 py-2 text-sm text-fg outline-none focus:border-brand-500/60;
+  border-color: rgba(var(--line), var(--line-alpha));
 }
 .label {
-  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400;
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-fg-muted;
 }

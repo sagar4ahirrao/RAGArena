@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ThemeToggle from "./ThemeToggle";
 
 const NAV = [
   { href: "/", label: "Overview", icon: "◆" },
@@ -17,12 +18,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-white/10 bg-ink-800/60 backdrop-blur">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-line/10 bg-ink-800/60 backdrop-blur">
         <div className="px-5 py-6">
-          <div className="text-lg font-bold tracking-tight">
+          <div className="text-lg font-bold tracking-tight text-fg">
             ⚡ Rag<span className="text-brand-400">Arena</span>
           </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-1 text-[11px] text-fg-muted">
             RAG strategy &amp; model playground
           </div>
         </div>
@@ -35,8 +36,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 href={item.href}
                 className={`mb-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
                   active
-                    ? "bg-brand-500/15 text-white border border-brand-500/30"
-                    : "text-slate-400 hover:bg-ink-700 hover:text-slate-200"
+                    ? "bg-brand-500/15 text-fg border border-brand-500/30"
+                    : "text-fg-muted hover:bg-ink-700 hover:text-fg"
                 }`}
               >
                 <span className="w-4 text-center opacity-80">{item.icon}</span>
@@ -45,7 +46,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="border-t border-white/10 px-5 py-4 text-[11px] leading-relaxed text-slate-500">
+        <div className="border-t border-line/10 px-3 py-3">
+          <ThemeToggle />
+        </div>
+        <div className="border-t border-line/10 px-5 py-4 text-[11px] leading-relaxed text-fg-muted">
           18 strategies · 100+ models · any provider
         </div>
       </aside>

@@ -15,6 +15,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('ragarena:theme');if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t);}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="font-sans antialiased">
         <Shell>{children}</Shell>
       </body>
