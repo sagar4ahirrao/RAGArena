@@ -366,18 +366,25 @@ def get_run(run_id: str):
                 "error": job.get("error"), "kind": "pending"}
     if run_id not in _RUNS:
         raise HTTPException(404, "run not found")
-    return _RUNS[run_id]
+    return {"status": "done", **_RUNS[run_id]}
 
 
 if (_UI_DIST / "_next").exists():
     app.mount("/_next", StaticFiles(directory=str(_UI_DIST / "_next")), name="ui-assets")
 
-    @app.get("/{page}", response_class=HTMLResponse, include_in_schema=False)
-    def ui_page(page: str):
-        """Serve a Next.js static-export page (client-side router handles the rest)."""
-        candidate = _UI_DIST / page / "index.html"
-        if candidate.exists():
-            return candidate.read_text(encoding="utf-8")
+    @app.get("/{path:path}", include_in_schema=False)
+    def ui_page(path: str):
+        """Serve any file from the Next.js static export: page HTML, the .txt RSC
+        prefetch payload Next's client router requests for each nav link, or a
+        bare asset. Falls back to {path}/index.html for a directory-style route."""
+        safe = (_UI_DIST / path).resolve()
+        if _UI_DIST.resolve() not in safe.parents and safe != _UI_DIST.resolve():
+            raise HTTPException(404, "page not found")
+        if safe.is_file():
+            return FileResponse(safe)
+        index_html = _UI_DIST / path / "index.html"
+        if index_html.exists():
+            return FileResponse(index_html)
         raise HTTPException(404, "page not found")
 
 

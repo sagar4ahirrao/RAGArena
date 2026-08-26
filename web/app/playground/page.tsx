@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { Chip, PageHeader, ScoreBadge, Spinner, StatCard } from "../components/ui";
+import CodePanel from "../components/CodePanel";
 
 type Doc = { text: string; metadata?: Record<string, any> };
 
@@ -69,11 +70,7 @@ export default function PlaygroundPage() {
     setDocSource(`${lines.length} pasted line(s)`);
   }
 
-  async function run() {
-    if (docs.length === 0) {
-      setStatus("add documents first — upload a file, pick a dataset, or paste text");
-      return;
-    }
+  function parseQuestions() {
     const lines = questionsText.split("\n").map((l) => l.trim()).filter(Boolean);
     const questions: string[] = [];
     const refs: (string | null)[] = [];
@@ -82,6 +79,15 @@ export default function PlaygroundPage() {
       questions.push(q.trim());
       refs.push(r?.trim() || null);
     }
+    return { questions, refs };
+  }
+
+  async function run() {
+    if (docs.length === 0) {
+      setStatus("add documents first — upload a file, pick a dataset, or paste text");
+      return;
+    }
+    const { questions, refs } = parseQuestions();
     if (questions.length === 0) {
       setStatus("add at least one question");
       return;
@@ -252,16 +258,37 @@ export default function PlaygroundPage() {
           />
           <p className="mt-1 text-[11px] text-slate-500">one per line — suffix with ::answer for a reference</p>
 
-          <button className="btn mt-4 w-full justify-center" disabled={running} onClick={run}>
-            {running ? (
-              <>
-                <Spinner /> Running…
-              </>
-            ) : (
-              "▶ Run evaluation"
-            )}
-          </button>
+          <div className="mt-4 flex gap-2">
+            <button className="btn flex-1 justify-center" disabled={running} onClick={run}>
+              {running ? (
+                <>
+                  <Spinner /> Running…
+                </>
+              ) : (
+                "▶ Run evaluation"
+              )}
+            </button>
+          </div>
           {status && <p className="mt-2 text-xs text-slate-400">{status}</p>}
+
+          {docs.length > 0 && questionsText.trim() && (
+            <div className="mt-3">
+              <CodePanel
+                config={{
+                  questions: parseQuestions().questions,
+                  documents: docs.map((d) => ({ text: d.text })),
+                  reference_answers: parseQuestions().refs,
+                  strategy,
+                  model,
+                  embedding_model: embedModel,
+                  judge_model: judgeModel,
+                  metrics: metricsPreset,
+                  chunk_size: chunkSize,
+                  chunk_overlap: chunkOverlap,
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
