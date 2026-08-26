@@ -46,6 +46,25 @@ embeddings beat OpenAI's on my legal corpus?"*
 | Head-to-head leaderboard w/ shared index | ❌ | ❌ | ❌ | ✅ |
 | Zero-config web dashboard | ❌ | ❌ | ❌ | ✅ |
 
+### vs. RAG-Anything (LightRAG-based multimodal pipelines)
+
+[RAG-Anything](https://github.com/HKUDS/RAG-Anything) is a great *single-pipeline* multimodal
+document processor (MinerU parsing, VLM captioning, multimodal knowledge graph). RagArena
+attacks a different — and complementary — problem: **which RAG design should you ship?**
+
+| Capability | RAG-Anything | **RagArena** |
+|---|---|---|
+| Retrieval strategies you can choose from | 1 (fixed LightRAG pipeline) | **18** (naive → hybrid → HyDE → CRAG → Self-RAG → agentic → graph ×4 → multimodal) |
+| Benchmarking / evaluation harness | ❌ none | ✅ metrics, cost & latency accounting, leaderboards, strategy recommendation |
+| LLM / embedding provider freedom | OpenAI-shaped funcs you wire yourself | ✅ `provider/model` IDs across 25+ providers, swap per run |
+| Structured data (SQL, SQLite, Excel, CSV/TSV, JSON/JSONL, XML, YAML) | via LibreOffice conversion only | ✅ native parsers — row-aware chunking, key-path flattening, schema-context chunks |
+| Heavy system dependencies | MinerU + LibreOffice + model downloads | ✅ pure-Python stdlib-first; every parser degrades gracefully |
+| UI playground for non-engineers | ❌ | ✅ Next.js playground + one-command Docker image |
+
+**Use both together:** parse gnarly scanned PDFs with RAG-Anything/MinerU, feed the extracted
+content lists into RagArena's `evaluate()` to pick the best strategy/model combo before you commit.
+
+
 ## Install
 
 ```bash
@@ -145,15 +164,20 @@ Also available as `ragarena recommend --documents ... --questions ...` (CLI) and
 ```python
 from ragarena import parse_file, parse_dir, from_sql
 
-docs = parse_file("report.pdf")                 # pdf, docx, pptx, html, csv, json,
-docs += parse_file("notes.docx")                 # xlsx, md, txt, images, .sql, .sqlite
-docs += parse_dir("./knowledge_base/", recursive=True)   # walk a whole directory, mixed formats
+docs = parse_file("report.pdf")                 # pdf, docx, pptx, html
+docs += parse_file("notes.docx")                 # csv/tsv, json/jsonl, xml, yaml/yml,
+docs += parse_file("sheet.xlsx")                 # xlsx (all sheets), md, txt, images,
+docs += parse_dir("./knowledge_base/")           # .sql dumps, sqlite/sqlite3/db files — mixed dirs OK
 
 docs += from_sql("postgresql://user:pass@host/db",       # any SQLAlchemy-supported DB
                   "SELECT id, title, body FROM articles")
 ```
 
-`pip install "ragarena[ingest,sql]"` for the optional parser/DB-driver dependencies.
+Structured data is parsed *retrieval-aware*: table rows are chunked in groups that repeat the
+column headers ("col: value" pairs), JSON/YAML are flattened to full key-path facts
+(`offices[0].city: Berlin`), and XML keeps tag-path + attribute context — so embeddings stay
+self-contained and answers cite the right field. `pip install "ragarena[ingest,sql]"` for the
+optional parser/DB-driver dependencies (SQLite works with zero extras).
 
 ## 🖥 Web dashboard
 

@@ -15,8 +15,12 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src/ ./src/
 COPY --from=ui-builder /ui/out/ ./src/ragarena/api/ui_dist/
 
+# Install RagArena + every extra. Torch comes first from the CPU-only index
+# (~200 MB instead of the multi-GB CUDA wheel) so LOCAL embeddings
+# (sentence-transformers/all-MiniLM-L6-v2) work with zero API keys.
 RUN pip install --upgrade pip && \
-    pip install ".[retrieval,ingest,datasets,providers]"
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir ".[all]"
 
 EXPOSE 4000
 ENV RAGARENA_HOST=0.0.0.0 \
