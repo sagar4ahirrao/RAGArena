@@ -139,7 +139,7 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
     },
     "squad": {
         "description": "SQuAD v1.1 — Wikipedia reading-comprehension QA (HuggingFace 'squad').",
-        "loader": _hf_loader("squad", None, "validation", "question", "context", "answers", 50),
+        "loader": _hf_loader("squad", None, "validation", "question", "context", "answers", 50, answer_is_list=True),
         "size": "10570 (val)", "offline": False,
     },
     "hotpotqa": {

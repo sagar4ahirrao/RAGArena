@@ -316,7 +316,10 @@ async def upload(files: List["UploadFile"] = File(...)):  # type: ignore[name-de
             tmp.write(await f.read())
             tmp_path = tmp.name
         try:
-            all_docs.extend(parse_file(tmp_path))
+            parsed = parse_file(tmp_path)
+            for d in parsed:
+                d["metadata"] = {**d.get("metadata", {}), "source": f.filename, "path": f.filename}
+            all_docs.extend(parsed)
         except Exception as e:
             all_docs.append({"text": "", "metadata": {"source": f.filename, "error": str(e)[:120]}})
         finally:
