@@ -5,8 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [Sem
 
 ## [0.2.4] — 2026-08-26
 
-`completion()` now routes through [LiteLLM](https://github.com/BerriAI/litellm)
-instead of hand-rolled per-provider SDK integrations.
+`completion()` now routes through LiteLLM instead of hand-rolled per-provider
+SDK integrations.
 
 ### Changed
 - Removed the bespoke `_anthropic_completion`/`_cohere_completion`/
