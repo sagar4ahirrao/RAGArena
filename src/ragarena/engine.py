@@ -142,6 +142,7 @@ def evaluate(
     max_concurrency: int = 1,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
+    judge_samples: int = 1,
 ) -> EvaluationReport:
     """
     Run a full RAG evaluation over a set of questions.
@@ -153,9 +154,17 @@ def evaluate(
         reference_answers: ground truth per question (enables recall/correctness).
         strategy: any of 13 strategies (see RagArena.list_strategies()).
         model: generator LLM as 'provider/name'.
-        embedding_model: retriever embeddings as 'provider/name'.
+        embedding_model: retriever embeddings as 'provider/name'. Retrieval
+            metrics (context_precision/recall, hit_rate, mrr) reuse this same
+            model for real embedding-cosine relevance scoring, instead of a
+            lexical keyword-overlap heuristic.
         judge_model: LLM-as-judge for faithfulness/relevance metrics.
         metrics: preset name ('quick'|'quality'|'full'|'production') or explicit list.
+        judge_samples: call the LLM judge this many times per sample and
+            average the scores (default 1 = single call). Set to 3+ to reduce
+            single-sample LLM-judge variance when you need a more reliable
+            number, e.g. before publishing a comparison — costs judge_samples-1
+            extra LLM calls per judged metric.
 
     Returns:
         EvaluationReport with per-sample results and aggregates.
@@ -200,7 +209,8 @@ def evaluate(
             usage=sr.usage.to_dict(), latency_s=sr.latency_s,
             intermediate=sr.intermediate,
         )
-        mctx = MetricContext(judge_model=judge_model)
+        mctx = MetricContext(judge_model=judge_model, embedding_model=index.embedding_model,
+                             judge_samples=judge_samples)
 
         metric_out: Dict[str, dict] = {}
         for impl in metric_impls:
@@ -310,6 +320,7 @@ def compare(
                 model=cfg.get("model", "openai/gpt-4o-mini"),
                 judge_model=cfg.get("judge_model", cfg.get("model", "openai/gpt-4o-mini")),
                 metrics=metrics,
+                judge_samples=cfg.get("judge_samples", 1),
             )
         except Exception as e:
             # one bad config (missing key, unknown model, ...) shouldn't discard

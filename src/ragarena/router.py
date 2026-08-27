@@ -148,8 +148,55 @@ def _get_openai_compatible_client(provider: str, api_key: Optional[str], base_ur
 # Public router API — completion()
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _custom_model_completion(model: Any, messages: List[Dict[str, str]],
+                             temperature: float, max_tokens: Optional[int]) -> ModelResponse:
+    """Run a non-string `model` — a LangChain chat model/Runnable, or any
+    plain callable(messages) -> str. Cost/token accounting degrades to
+    whatever the object reports (LangChain's `.usage_metadata` when present),
+    zero otherwise, since we have no catalog pricing for an arbitrary object.
+    """
+    t0 = time.perf_counter()
+    text = ""
+    usage = Usage()
+    model_label = getattr(model, "model_name", None) or getattr(model, "model", None) \
+        or type(model).__name__
+
+    if hasattr(model, "invoke") and callable(model.invoke):
+        # LangChain BaseChatModel / Runnable interface
+        lc_messages: Any = messages
+        try:
+            from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+            role_map = {"system": SystemMessage, "user": HumanMessage, "assistant": AIMessage}
+            lc_messages = [role_map.get(m["role"], HumanMessage)(content=m["content"]) for m in messages]
+        except ImportError:
+            pass  # fall back to passing our plain dicts — many Runnables accept them too
+        try:
+            result = model.invoke(lc_messages, temperature=temperature, max_tokens=max_tokens)
+        except TypeError:
+            result = model.invoke(lc_messages)  # some models don't accept kwargs passthrough
+        text = getattr(result, "content", None) or (result if isinstance(result, str) else str(result))
+        meta = getattr(result, "usage_metadata", None) or {}
+        if meta:
+            usage = Usage(
+                prompt_tokens=meta.get("input_tokens", 0) or 0,
+                completion_tokens=meta.get("output_tokens", 0) or 0,
+                total_tokens=meta.get("total_tokens", 0) or 0,
+            )
+    elif callable(model):
+        result = model(messages)
+        text = getattr(result, "content", None) or (result if isinstance(result, str) else str(result))
+    else:
+        raise TypeError(
+            f"model={model!r} is neither a 'provider/name' string, a LangChain-style object "
+            f"with .invoke(), nor a callable(messages) -> str."
+        )
+
+    latency = time.perf_counter() - t0
+    return ModelResponse(text=text or "", model=f"custom/{model_label}", usage=usage, latency_s=latency)
+
+
 def completion(
-    model: str,
+    model: Any,
     messages: List[Dict[str, str]],
     api_key: Optional[str] = None,
     api_base: Optional[str] = None,
@@ -159,7 +206,9 @@ def completion(
     **kwargs: Any,
 ) -> ModelResponse:
     """
-    Call any supported LLM. ``model`` is ``provider/name``.
+    Call any supported LLM. ``model`` is normally ``provider/name`` (routed
+    through LiteLLM, 100+ providers), but any object supported by your stack
+    also works — bring your own model:
 
     Examples::
 
@@ -167,7 +216,17 @@ def completion(
         completion(model="anthropic/claude-3-haiku-20240307", messages=[...])
         completion(model="groq/openai/gpt-oss-20b", messages=[...])
         completion(model="ollama/llama3.1", messages=[...])   # local, free
+
+        # bring your own model — any LangChain chat model (or Runnable)
+        from langchain_openai import ChatOpenAI
+        completion(model=ChatOpenAI(model="gpt-4o-mini"), messages=[...])
+
+        # ...or any plain callable(messages) -> str
+        completion(model=lambda msgs: my_local_model.generate(msgs), messages=[...])
     """
+    if not isinstance(model, str):
+        return _custom_model_completion(model, messages, temperature, max_tokens)
+
     provider, model_name = parse_model_id(model)
     info = get_model(model)
 
@@ -328,14 +387,41 @@ def _azure_foundry_completion(model_id, model_name, messages, api_key, api_base,
 # Public router API — embedding()
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _custom_model_embedding(model: Any, input: List[str]) -> EmbeddingResponse:
+    """Embed with a non-string `model` — a LangChain Embeddings object
+    (`.embed_documents()`) or any callable(list[str]) -> list[list[float]]."""
+    t0 = time.perf_counter()
+    if hasattr(model, "embed_documents") and callable(model.embed_documents):
+        vectors = model.embed_documents(input)
+    elif callable(model):
+        vectors = model(input)
+    else:
+        raise TypeError(
+            f"model={model!r} is neither a 'provider/name' string, a LangChain-style Embeddings "
+            f"object with .embed_documents(), nor a callable(list[str]) -> list[list[float]]."
+        )
+    latency = time.perf_counter() - t0
+    label = getattr(model, "model", None) or getattr(model, "model_name", None) or type(model).__name__
+    return EmbeddingResponse(vectors=vectors, model=f"custom/{label}", usage=Usage(), latency_s=latency)
+
+
 def embedding(
-    model: str,
+    model: Any,
     input: List[str],
     api_key: Optional[str] = None,
     api_base: Optional[str] = None,
     batch_size: int = 96,
 ) -> EmbeddingResponse:
-    """Embed texts with any supported embedding model ('provider/name')."""
+    """Embed texts with any supported embedding model ('provider/name'), or
+    bring your own — a LangChain Embeddings object, or callable(texts) ->
+    vectors::
+
+        from langchain_openai import OpenAIEmbeddings
+        embedding(model=OpenAIEmbeddings(), input=["hello world"])
+    """
+    if not isinstance(model, str):
+        return _custom_model_embedding(model, input)
+
     provider, model_name = parse_model_id(model)
     get_model(model)  # validate
 

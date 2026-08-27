@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragarena"
-version = "0.2.5"
+version = "0.3.0"
 description = "⚡ Evaluate & benchmark RAG strategies, LLMs and embedding models across every popular provider — 18 strategies (incl. graph + multimodal), 100+ models, built-in dashboard."
 readme = "README.md"
 requires-python = ">=3.9"

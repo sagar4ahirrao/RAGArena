@@ -52,7 +52,7 @@ _JOBS: Dict[str, dict] = {}
 app = FastAPI(
     title="RagArena API",
     description="Unified evaluation API for RAG strategies, LLMs and embedding models.",
-    version="0.2.5",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -80,6 +80,7 @@ class EvaluateRequest(BaseModel):
     metrics: Any = "production"
     chunk_size: Optional[int] = None
     chunk_overlap: Optional[int] = None
+    judge_samples: int = 1
 
 
 class CompareRequest(BaseModel):
@@ -169,6 +170,7 @@ def run_evaluate(req: EvaluateRequest):
                 model=req.model, embedding_model=req.embedding_model,
                 judge_model=req.judge_model, metrics=req.metrics,
                 chunk_size=req.chunk_size, chunk_overlap=req.chunk_overlap,
+                judge_samples=req.judge_samples,
             )
             data = report.to_dict()
             _RUNS[run_id] = data

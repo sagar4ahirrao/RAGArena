@@ -70,6 +70,7 @@ def cmd_run(args):
         embedding_model=args.embedding,
         judge_model=args.judge,
         metrics=args.metrics,
+        judge_samples=args.judge_samples,
     )
     report.print_summary()
     if args.save:
@@ -211,6 +212,8 @@ def build_parser():
     rp.add_argument("--embedding", default="openai/text-embedding-3-small")
     rp.add_argument("--judge", default="openai/gpt-4o-mini")
     rp.add_argument("--metrics", default="production")
+    rp.add_argument("--judge-samples", type=int, default=1, dest="judge_samples",
+                    help="average N independent judge calls to reduce LLM-judge variance (default 1)")
     rp.add_argument("--save")
     rp.set_defaults(fn=cmd_run)
 

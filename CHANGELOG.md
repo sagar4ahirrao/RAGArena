@@ -3,6 +3,35 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.3.0] — 2026-08-27
+
+Reliability and extensibility release, in direct response to feedback that
+retrieval metrics were purely lexical and the framework only accepted
+`provider/model` strings.
+
+### Added
+- **Embedding-based retrieval metrics**: `context_precision`, `context_recall`,
+  `hit_rate`, and `mrr` now score chunk relevance using real embedding cosine
+  similarity (via the run's own `embedding_model`) instead of keyword
+  overlap, when an embedding model is available. Falls back to the previous
+  lexical heuristic otherwise (e.g. no `embedding_model` configured). The
+  semantic-relevance threshold is tunable via `RAGARENA_RELEVANCE_THRESHOLD`
+  (default `0.55`). Each metric result now reports which `method` was used.
+  Verified live: a pure paraphrase that keyword-overlap scored `0.0` is
+  correctly caught at `0.775` similarity; an unrelated distractor correctly
+  scores below threshold at `0.477`.
+- **Multi-sample LLM-judge voting**: pass `judge_samples=N` to `evaluate()`,
+  `compare()` (per-config), or `ragarena run --judge-samples N` to average N
+  independent judge calls (with temperature jitter) instead of trusting a
+  single sample. Reports `score_stdev` and `all_scores` alongside the mean.
+  Verified live with `judge_samples=3`.
+- **Bring-your-own-model (BYOM)**: `completion()` and `embedding()` now
+  accept any LangChain chat model / `Embeddings` object, or a plain
+  `callable`, in addition to the existing `"provider/name"` strings — so
+  developers can plug in models from LiteLLM, LangChain, or their own stack
+  interchangeably. Verified live with both a LangChain-style `.invoke()`
+  object and a plain callable, through the full `evaluate()` pipeline.
+
 ## [0.2.5] — 2026-08-27
 
 Verified with the Playwright MCP browser against the live app (not just

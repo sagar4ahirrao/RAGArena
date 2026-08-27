@@ -64,7 +64,7 @@ see [CHANGELOG.md](CHANGELOG.md).
 | Module | Responsibility |
 | --- | --- |
 | `catalog.py` | Model/provider registry — 100+ chat/embedding/rerank models across 20+ providers, with context windows and per-1M-token pricing; `estimate_cost()`. |
-| `router.py` | Unified `completion()` / `embedding()` / `rerank()` addressed as `provider/model`. `completion()` is backed by LiteLLM for the actual provider call (auth + request shaping across 100+ providers), while ragarena still resolves API keys itself (clear `MissingAPIKeyError` UX) and computes cost from its own catalog pricing. `embedding()`/`rerank()` keep direct SDK integrations (Voyage, Cohere, local HuggingFace `sentence-transformers`). Auto-loads a project `.env`. |
+| `router.py` | Unified `completion()` / `embedding()` / `rerank()` addressed as `provider/model`. `completion()` is backed by LiteLLM for the actual provider call (auth + request shaping across 100+ providers), while ragarena still resolves API keys itself (clear `MissingAPIKeyError` UX) and computes cost from its own catalog pricing. `embedding()`/`rerank()` keep direct SDK integrations (Voyage, Cohere, local HuggingFace `sentence-transformers`). Both `completion()` and `embedding()` also accept a non-string `model` — a LangChain chat model / `Embeddings` object, or any plain callable — for bring-your-own-model use (see `_custom_model_completion` / `_custom_model_embedding`); cost/token accounting degrades gracefully since there's no catalog pricing for an arbitrary object. Auto-loads a project `.env`. |
 | `index.py` | `VectorIndex` (zero-config chunk + embed + cosine search), `TextChunker` (recursive character splitter with overlap), `MultimodalDocument` (typed text/table/image/equation chunks). |
 | `graph.py` | `GraphIndex` — lazy per-corpus knowledge graph: entity extraction per chunk (LLM-based, falls back to a deterministic keyword extractor), community clustering, local/global summarization. |
 | `strategies.py` | 18 `Strategy` implementations, one `run(query, index, llm_model, embedding_model)` interface each — interchangeable inside `evaluate()`/`compare()`. |
@@ -90,9 +90,16 @@ see [CHANGELOG.md](CHANGELOG.md).
    strategy) and calls `router.completion()` to generate an answer, returning a
    `StrategyResult` (answer, chunks, usage, latency).
 4. **Score**: each `(question, answer, chunks, reference_answer)` sample is scored by
-   every metric in the resolved preset — retrieval metrics run locally (no LLM call),
+   every metric in the resolved preset. Retrieval metrics (`context_precision`,
+   `context_recall`, `hit_rate`, `mrr`) score chunk relevance via embedding cosine
+   similarity against the run's `embedding_model` when one is available (falling back to
+   lexical keyword overlap otherwise; the semantic threshold is tunable via
+   `RAGARENA_RELEVANCE_THRESHOLD`, default `0.55`) — no extra LLM call either way.
    LLM-judged metrics (`faithfulness`, `answer_relevance`, `answer_correctness`) call
-   `judge_model` via `router.completion()` and parse a structured verdict.
+   `judge_model` via `router.completion()` and parse a structured verdict; pass
+   `judge_samples > 1` to average several independent judge calls (temperature jitter
+   between samples) and report `score_stdev`/`all_scores`, reducing single-sample
+   LLM-judge variance.
 5. **Report**: `EvaluationReport` aggregates per-sample metrics into a summary (mean
    score per metric, p50/avg/p95 latency, total cost, total tokens) and can be printed,
    saved to JSON, or serialized for the API/UI.

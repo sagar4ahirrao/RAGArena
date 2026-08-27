@@ -250,6 +250,27 @@ RagArena models providers                  # provider summary
 RagArena strategies                        # the 18 strategies
 ```
 
+### Already using LangChain, or your own model wrapper? Bring it as-is
+
+`model=` and `embedding_model=` don't have to be a `provider/name` string — pass any
+LangChain chat model / `Embeddings` object, or a plain Python callable, and RagArena
+will use it directly:
+
+```python
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from ragarena import evaluate
+
+evaluate(
+    questions=[...], documents=[...],
+    model=ChatOpenAI(model="gpt-4o-mini"),        # any LangChain BaseChatModel/Runnable
+    embedding_model=OpenAIEmbeddings(),            # any LangChain Embeddings object
+    judge_model="openai/gpt-4o-mini",              # mix and match freely
+)
+
+# or just a plain callable — no LangChain required
+evaluate(model=lambda messages: my_llm_call(messages), ...)
+```
+
 ## 🧪 The 18 built-in strategies
 
 | Strategy | What it does | Best for |
@@ -343,6 +364,22 @@ metrics=["context_precision", "context_recall", "hit_rate", "mrr",   # retrieval
 ```
 
 Any model can be the judge: `judge_model="anthropic/claude-3-haiku-20240307"`.
+
+**Retrieval metrics use real embedding similarity, not keyword matching.** When an
+`embedding_model` is set, `context_precision`/`context_recall`/`hit_rate`/`mrr` score
+chunk relevance via cosine similarity — so a paraphrased-but-relevant chunk scores
+correctly even with zero shared keywords. (Falls back to lexical overlap if no embedding
+model is configured.) Tune the semantic threshold with `RAGARENA_RELEVANCE_THRESHOLD`
+(default `0.55`).
+
+**Reduce LLM-judge variance with multi-sampling.** A single judge call can be noisy —
+pass `judge_samples=3` to average 3 independent judge calls (with temperature jitter)
+instead of trusting one sample:
+
+```python
+evaluate(questions=[...], documents=docs, judge_samples=3)
+# report includes score_stdev and all_scores per metric
+```
 
 ## 📦 Use inside your existing pipeline
 

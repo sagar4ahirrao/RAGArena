@@ -37,7 +37,7 @@ from .engine import evaluate, compare, recommend_strategy, EvaluationReport, Com
 from .ingest import parse_file, parse_dir, to_multimodal, from_sql
 from .datasets import load_dataset, list_datasets, DATASET_REGISTRY
 
-__version__ = "0.2.5"
+__version__ = "0.3.0"
 __author__ = "RagArena contributors"
 
 __all__ = [
