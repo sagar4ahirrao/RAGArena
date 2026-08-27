@@ -16,6 +16,7 @@ embedding()/rerank() keep direct SDK integrations (voyage/cohere/local HF).
 from __future__ import annotations
 
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -194,17 +195,26 @@ def completion(
     t0 = time.perf_counter()
     resp = None
     last_err: Optional[Exception] = None
+    rate_limit_retries = 0
     # newer "reasoning" model deployments (o1/o3/gpt-5-style, etc.) often
     # reject standard params like max_tokens/temperature — retry stripping
     # whichever single param the provider names, up to a few attempts.
-    for _ in range(4):
+    for _ in range(4 + 3):  # + headroom for rate-limit retries (don't burn param-fix attempts)
         try:
             resp = litellm.completion(**call_kwargs)
             break
         except Exception as e:
             last_err = e
             msg = str(e)
-            if "max_tokens" in msg and "max_tokens" in call_kwargs:
+            is_rate_limit = "RateLimitError" in type(e).__name__ or "rate_limit" in msg.lower()
+            if is_rate_limit and rate_limit_retries < 3:
+                rate_limit_retries += 1
+                wait_s = 1.5 * rate_limit_retries  # default backoff
+                m = re.search(r"try again in ([\d.]+)s", msg)
+                if m:
+                    wait_s = min(float(m.group(1)) + 0.5, 30.0)  # provider's own suggested wait, capped
+                time.sleep(wait_s)
+            elif "max_tokens" in msg and "max_tokens" in call_kwargs:
                 call_kwargs["max_completion_tokens"] = call_kwargs.pop("max_tokens")
             elif "temperature" in msg and "temperature" in call_kwargs:
                 call_kwargs.pop("temperature")

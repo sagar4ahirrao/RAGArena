@@ -3,6 +3,33 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.2.5] — 2026-08-27
+
+Verified with the Playwright MCP browser against the live app (not just
+curl/API checks) — found and fixed a real reliability gap and remaining
+light-theme contrast issues.
+
+### Fixed
+- **No rate-limit retry**: a burst of LLM calls (e.g. an 8-question run with
+  the `production` metric preset, which adds 2 judge calls per question)
+  against a free-tier key could exceed the provider's tokens-per-minute
+  limit — half the questions in a live test failed outright with
+  `RateLimitError`. `completion()` now retries on a rate-limit error (up to
+  3 times), honoring the provider's own suggested wait time when the error
+  message includes one (e.g. Groq's "try again in 4.47s"), falling back to
+  an increasing backoff otherwise. Re-ran the exact scenario that failed
+  live: 0 errors across all 8 questions afterward.
+- Missing favicon caused a `/favicon.ico` 404 console error on every single
+  page load — added `web/app/icon.svg`.
+- A handful of remaining hardcoded `text-slate-200/300` headings (light
+  grays meant for dark backgrounds) were still barely legible in light
+  theme; swapped to the theme-aware `text-fg`/`text-fg-muted` tokens.
+
+Verified via the Playwright MCP browser: navigated all 7 pages (zero
+console errors), then drove a real interactive evaluation end-to-end
+through the actual UI (select dataset → pick live Groq/Gemini models → run
+→ confirm results render) rather than only checking the API layer.
+
 ## [0.2.4] — 2026-08-26
 
 `completion()` now routes through LiteLLM instead of hand-rolled per-provider
@@ -193,6 +220,7 @@ First public release. ⚡
   `GET /api/runs/{id}`, `GET /health`.
 - Examples, contributing guide, MIT license.
 
+[0.2.5]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.5
 [0.2.4]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.4
 [0.2.3]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.3
 [0.2.2]: https://github.com/sagar4ahirrao/ragarena/releases/tag/v0.2.2
