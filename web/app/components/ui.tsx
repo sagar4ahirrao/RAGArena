@@ -3,7 +3,7 @@
 export function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="card">
-      <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="text-[11px] uppercase tracking-wide text-fg-muted">{label}</div>
       <div className="mt-1.5 text-2xl font-bold">{value}</div>
     </div>
   );
@@ -40,7 +40,7 @@ const PROVIDER_COLORS: Record<string, string> = {
 };
 
 export function ProviderBadge({ provider }: { provider: string }) {
-  const cls = PROVIDER_COLORS[provider] || "text-slate-400 bg-slate-400/10 border-slate-400/20";
+  const cls = PROVIDER_COLORS[provider] || "text-fg-muted bg-slate-400/10 border-slate-400/20";
   return (
     <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${cls}`}>
       {provider}
@@ -49,7 +49,7 @@ export function ProviderBadge({ provider }: { provider: string }) {
 }
 
 export function ScoreBadge({ value }: { value: number | undefined | null }) {
-  if (value === undefined || value === null) return <span className="text-slate-600">—</span>;
+  if (value === undefined || value === null) return <span className="text-fg-muted">—</span>;
   const cls = value >= 0.8 ? "text-emerald-400" : value >= 0.5 ? "text-amber-400" : "text-red-400";
   return <span className={`font-mono font-semibold ${cls}`}>{value.toFixed(3)}</span>;
 }
@@ -64,7 +64,7 @@ export function PageHeader({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="mb-6">
       <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-      {sub && <p className="mt-1 text-sm text-slate-400">{sub}</p>}
+      {sub && <p className="mt-1 text-sm text-fg-muted">{sub}</p>}
     </div>
   );
 }

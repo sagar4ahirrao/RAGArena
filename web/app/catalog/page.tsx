@@ -44,36 +44,36 @@ export default function CatalogPage() {
           </Chip>
         ))}
       </div>
-      <div className="card overflow-x-auto">
+      <div className="card max-h-[75vh] overflow-auto">
         <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="text-slate-500">
-              <th className="pb-2 pr-4">Model ID</th>
-              <th className="pb-2 pr-4">Type</th>
-              <th className="pb-2 pr-4">Context</th>
-              <th className="pb-2 pr-4">$ In / 1M</th>
-              <th className="pb-2 pr-4">$ Out / 1M</th>
-              <th className="pb-2">Notes</th>
+          <thead className="sticky top-0 z-10 bg-ink-800">
+            <tr className="text-fg-muted">
+              <th className="pb-2 pr-4 pt-1">Model ID</th>
+              <th className="pb-2 pr-4 pt-1">Type</th>
+              <th className="pb-2 pr-4 pt-1">Context</th>
+              <th className="pb-2 pr-4 pt-1">$ In / 1M</th>
+              <th className="pb-2 pr-4 pt-1">$ Out / 1M</th>
+              <th className="pb-2 pt-1">Notes</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((m: any) => (
-              <tr key={m.id} className="border-t border-white/5">
+              <tr key={m.id} className="border-t border-line/5">
                 <td className="py-2 pr-4">
                   <div className="flex items-center gap-2">
                     <ProviderBadge provider={m.provider} />
-                    <span className="font-mono text-slate-300">{m.model_name}</span>
+                    <span className="font-mono text-fg">{m.model_name}</span>
                   </div>
                 </td>
-                <td className="py-2 pr-4 text-slate-400">{m.modality}</td>
-                <td className="py-2 pr-4 font-mono text-slate-400">
+                <td className="py-2 pr-4 text-fg-muted">{m.modality}</td>
+                <td className="py-2 pr-4 font-mono text-fg-muted">
                   {m.modality === "chat" && m.context_window ? `${Math.round(m.context_window / 1000)}k` : "—"}
                 </td>
-                <td className="py-2 pr-4 font-mono text-slate-400">
+                <td className="py-2 pr-4 font-mono text-fg-muted">
                   {m.input_cost ? `$${m.input_cost}` : "free"}
                 </td>
-                <td className="py-2 pr-4 font-mono text-slate-400">{m.output_cost ? `$${m.output_cost}` : "—"}</td>
-                <td className="py-2 text-slate-500">{m.description}</td>
+                <td className="py-2 pr-4 font-mono text-fg-muted">{m.output_cost ? `$${m.output_cost}` : "—"}</td>
+                <td className="py-2 text-fg-muted">{m.description}</td>
               </tr>
             ))}
           </tbody>

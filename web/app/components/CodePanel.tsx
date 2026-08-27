@@ -55,7 +55,7 @@ export default function CodePanel({ config }: { config: EvalConfig }) {
           </button>
         </div>
       </div>
-      <pre className="mono max-h-[420px] overflow-auto rounded-xl bg-ink-900/60 p-4 text-[12px] leading-relaxed text-slate-300">
+      <pre className="mono max-h-[420px] overflow-auto rounded-xl bg-ink-900/60 p-4 text-[12px] leading-relaxed text-fg">
         <code>{code}</code>
       </pre>
     </div>

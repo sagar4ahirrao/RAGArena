@@ -149,7 +149,7 @@ export default function RecommendPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Left: corpus */}
         <div className="card lg:col-span-1">
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">1. Corpus</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">1. Corpus</h3>
           <div className="flex flex-wrap gap-2">
             <button className="btn-ghost" onClick={() => fileInput.current?.click()}>
               ⬆ Upload files
@@ -163,11 +163,11 @@ export default function RecommendPage() {
               onChange={(e) => onUpload(e.target.files)}
             />
           </div>
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] text-fg-muted">
             pdf · docx · pptx · html · csv · json · xlsx · md · txt · images
           </p>
 
-          <div className="my-3 border-t border-white/5" />
+          <div className="my-3 border-t border-line/5" />
           <label className="label">Or pick a bundled/benchmark dataset</label>
           <select className="input" onChange={(e) => e.target.value && loadDataset(e.target.value)} defaultValue="">
             <option value="" disabled>
@@ -180,7 +180,7 @@ export default function RecommendPage() {
             ))}
           </select>
 
-          <div className="my-3 border-t border-white/5" />
+          <div className="my-3 border-t border-line/5" />
           <label className="label">Or paste raw text (one document per line)</label>
           <textarea
             className="input min-h-[90px]"
@@ -190,7 +190,7 @@ export default function RecommendPage() {
 
           {docSource && <p className="mt-3 text-xs text-emerald-400">✓ {docSource}</p>}
 
-          <div className="my-3 border-t border-white/5" />
+          <div className="my-3 border-t border-line/5" />
           <label className="label">Questions</label>
           <textarea
             className="input min-h-[120px]"
@@ -198,14 +198,14 @@ export default function RecommendPage() {
             value={questionsText}
             onChange={(e) => setQuestionsText(e.target.value)}
           />
-          <p className="mt-1 text-[11px] text-slate-500">one per line — suffix with ::answer for a reference</p>
+          <p className="mt-1 text-[11px] text-fg-muted">one per line — suffix with ::answer for a reference</p>
         </div>
 
         {/* Middle: strategies */}
         <div className="card lg:col-span-1">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-200">2. Strategies to evaluate</h3>
-            <span className="text-[11px] text-slate-500">{selectedStrategies.length}/{strategies.length}</span>
+            <h3 className="text-sm font-semibold text-fg">2. Strategies to evaluate</h3>
+            <span className="text-[11px] text-fg-muted">{selectedStrategies.length}/{strategies.length}</span>
           </div>
           <div className="mb-2 flex gap-2">
             <button className="btn-ghost text-[11px]" onClick={selectAllStrategies}>
@@ -223,7 +223,7 @@ export default function RecommendPage() {
             ))}
           </div>
 
-          <div className="my-3 border-t border-white/5" />
+          <div className="my-3 border-t border-line/5" />
           <label className="label">Generator model</label>
           <select className="input mb-3" value={model} onChange={(e) => setModel(e.target.value)}>
             {chatModels.map((m: any) => (
@@ -254,7 +254,7 @@ export default function RecommendPage() {
 
         {/* Right: metrics + weights + run */}
         <div className="card lg:col-span-1">
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">3. Ranking</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">3. Ranking</h3>
           <label className="label">Metric preset</label>
           <select className="input mb-4" value={metricsPreset} onChange={(e) => setMetricsPreset(e.target.value)}>
             {(opts?.metrics_presets || ["production", "quality", "quick", "full"]).map((p: string) => (
@@ -266,7 +266,7 @@ export default function RecommendPage() {
 
           <label className="label flex items-center justify-between">
             <span>Quality weight</span>
-            <span className="font-mono text-slate-400">{qualityWeight.toFixed(2)}</span>
+            <span className="font-mono text-fg-muted">{qualityWeight.toFixed(2)}</span>
           </label>
           <input
             type="range"
@@ -280,7 +280,7 @@ export default function RecommendPage() {
 
           <label className="label flex items-center justify-between">
             <span>Cost weight</span>
-            <span className="font-mono text-slate-400">{costWeight.toFixed(2)}</span>
+            <span className="font-mono text-fg-muted">{costWeight.toFixed(2)}</span>
           </label>
           <input
             type="range"
@@ -294,7 +294,7 @@ export default function RecommendPage() {
 
           <label className="label flex items-center justify-between">
             <span>Latency weight</span>
-            <span className="font-mono text-slate-400">{latencyWeight.toFixed(2)}</span>
+            <span className="font-mono text-fg-muted">{latencyWeight.toFixed(2)}</span>
           </label>
           <input
             type="range"
@@ -315,7 +315,7 @@ export default function RecommendPage() {
               "★ Get recommendation"
             )}
           </button>
-          {status && <p className="mt-2 text-xs text-slate-400">{status}</p>}
+          {status && <p className="mt-2 text-xs text-fg-muted">{status}</p>}
         </div>
       </div>
 
@@ -327,15 +327,15 @@ export default function RecommendPage() {
                 ★ Recommended strategy
               </div>
               <div className="mt-1 text-2xl font-bold text-white">{result.best}</div>
-              {result.reasoning && <p className="mt-2 text-sm text-slate-300">{result.reasoning}</p>}
+              {result.reasoning && <p className="mt-2 text-sm text-fg">{result.reasoning}</p>}
             </div>
           )}
 
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">Leaderboard</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">Leaderboard</h3>
           <div className="card overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="text-slate-500">
+                <tr className="text-fg-muted">
                   <th className="pb-2 pr-4">Rank</th>
                   <th className="pb-2 pr-4">Strategy</th>
                   <th className="pb-2 pr-4">Quality</th>
@@ -348,9 +348,9 @@ export default function RecommendPage() {
                 {leaderboard.map((row: any, i: number) => (
                   <tr
                     key={row.strategy}
-                    className={`border-t border-white/5 ${row.strategy === result.best ? "bg-brand-500/5" : ""}`}
+                    className={`border-t border-line/5 ${row.strategy === result.best ? "bg-brand-500/5" : ""}`}
                   >
-                    <td className="py-2 pr-4 font-mono text-slate-500">#{i + 1}</td>
+                    <td className="py-2 pr-4 font-mono text-fg-muted">#{i + 1}</td>
                     <td className="py-2 pr-4 font-medium">
                       {row.strategy}
                       {row.strategy === result.best && <span className="ml-1.5 text-brand-400">★</span>}

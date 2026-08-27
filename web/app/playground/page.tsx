@@ -134,7 +134,7 @@ export default function PlaygroundPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Left: corpus */}
         <div className="card lg:col-span-1">
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">1. Corpus</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">1. Corpus</h3>
           <div className="flex flex-wrap gap-2">
             <button className="btn-ghost" onClick={() => fileInput.current?.click()}>
               ⬆ Upload files
@@ -148,11 +148,11 @@ export default function PlaygroundPage() {
               onChange={(e) => onUpload(e.target.files)}
             />
           </div>
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[11px] text-fg-muted">
             pdf · docx · pptx · html · csv · json · xlsx · md · txt · images
           </p>
 
-          <div className="my-3 border-t border-white/5" />
+          <div className="my-3 border-t border-line/5" />
           <label className="label">Or pick a bundled/benchmark dataset</label>
           <select className="input" onChange={(e) => e.target.value && loadDataset(e.target.value)} defaultValue="">
             <option value="" disabled>
@@ -165,7 +165,7 @@ export default function PlaygroundPage() {
             ))}
           </select>
 
-          <div className="my-3 border-t border-white/5" />
+          <div className="my-3 border-t border-line/5" />
           <label className="label">Or paste raw text (one document per line)</label>
           <textarea
             className="input min-h-[90px]"
@@ -175,7 +175,7 @@ export default function PlaygroundPage() {
 
           {docSource && <p className="mt-3 text-xs text-emerald-400">✓ {docSource}</p>}
 
-          <div className="my-3 border-t border-white/5" />
+          <div className="my-3 border-t border-line/5" />
           <label className="label">Chunk size / overlap</label>
           <div className="flex gap-2">
             <select className="input" value={chunkSize} onChange={(e) => setChunkSize(Number(e.target.value))}>
@@ -197,7 +197,7 @@ export default function PlaygroundPage() {
 
         {/* Middle: strategy + models */}
         <div className="card lg:col-span-1">
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">2. Strategy &amp; models</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">2. Strategy &amp; models</h3>
           <label className="label">RAG strategy</label>
           <div className="mb-3 flex flex-wrap gap-1.5">
             {strategies.map((s: any) => (
@@ -206,7 +206,7 @@ export default function PlaygroundPage() {
               </Chip>
             ))}
           </div>
-          <p className="mb-3 text-xs text-slate-500">
+          <p className="mb-3 text-xs text-fg-muted">
             {strategies.find((s: any) => s.name === strategy)?.description}
           </p>
 
@@ -249,14 +249,14 @@ export default function PlaygroundPage() {
 
         {/* Right: questions + run */}
         <div className="card lg:col-span-1">
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">3. Questions</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">3. Questions</h3>
           <textarea
             className="input min-h-[160px]"
             placeholder={"What is the capital of France?::Paris\nWhen was the Eiffel Tower built?"}
             value={questionsText}
             onChange={(e) => setQuestionsText(e.target.value)}
           />
-          <p className="mt-1 text-[11px] text-slate-500">one per line — suffix with ::answer for a reference</p>
+          <p className="mt-1 text-[11px] text-fg-muted">one per line — suffix with ::answer for a reference</p>
 
           <div className="mt-4 flex gap-2">
             <button className="btn flex-1 justify-center" disabled={running} onClick={run}>
@@ -269,7 +269,7 @@ export default function PlaygroundPage() {
               )}
             </button>
           </div>
-          {status && <p className="mt-2 text-xs text-slate-400">{status}</p>}
+          {status && <p className="mt-2 text-xs text-fg-muted">{status}</p>}
 
           {docs.length > 0 && questionsText.trim() && (
             <div className="mt-3">
@@ -294,7 +294,7 @@ export default function PlaygroundPage() {
 
       {result && (
         <div className="mt-6">
-          <h3 className="mb-3 text-sm font-semibold text-slate-200">Results</h3>
+          <h3 className="mb-3 text-sm font-semibold text-fg">Results</h3>
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
             {["faithfulness", "answer_relevance", "context_precision", "avg_latency_s", "total_cost_usd"]
               .filter((k) => result.aggregate?.[k] !== undefined)
@@ -315,7 +315,7 @@ export default function PlaygroundPage() {
           <div className="card overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="text-slate-500">
+                <tr className="text-fg-muted">
                   <th className="pb-2 pr-4">Question</th>
                   <th className="pb-2 pr-4">Answer</th>
                   {Object.keys(result.samples?.[0]?.metrics || {}).map((m) => (
@@ -328,15 +328,15 @@ export default function PlaygroundPage() {
               </thead>
               <tbody>
                 {(result.samples || []).map((s: any, i: number) => (
-                  <tr key={i} className="border-t border-white/5">
+                  <tr key={i} className="border-t border-line/5">
                     <td className="max-w-[220px] truncate py-2 pr-4">{s.question}</td>
-                    <td className="max-w-[280px] truncate py-2 pr-4 text-slate-400">{s.answer}</td>
+                    <td className="max-w-[280px] truncate py-2 pr-4 text-fg-muted">{s.answer}</td>
                     {Object.keys(result.samples?.[0]?.metrics || {}).map((m) => (
                       <td key={m} className="py-2 pr-4">
                         <ScoreBadge value={s.metrics?.[m]?.score} />
                       </td>
                     ))}
-                    <td className="py-2 font-mono text-slate-500">{s.latency_s?.toFixed(2)}s</td>
+                    <td className="py-2 font-mono text-fg-muted">{s.latency_s?.toFixed(2)}s</td>
                   </tr>
                 ))}
               </tbody>

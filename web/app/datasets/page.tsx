@@ -54,8 +54,8 @@ export default function DatasetsPage() {
                       {d.offline ? "offline" : "HuggingFace"}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-400">{d.description}</p>
-                  <p className="mt-1 text-[11px] text-slate-500">size: {String(d.size)}</p>
+                  <p className="mt-1 text-xs text-fg-muted">{d.description}</p>
+                  <p className="mt-1 text-[11px] text-fg-muted">size: {String(d.size)}</p>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1.5">
                   <button className="btn-ghost text-xs" onClick={() => open(d.name)}>
@@ -71,23 +71,23 @@ export default function DatasetsPage() {
         </div>
 
         <div className="card min-h-[200px]">
-          <h3 className="mb-2 text-sm font-semibold text-slate-200">Preview</h3>
-          {!preview && <p className="text-sm text-slate-500">Click "preview" on a dataset to inspect it here.</p>}
+          <h3 className="mb-2 text-sm font-semibold text-fg">Preview</h3>
+          {!preview && <p className="text-sm text-fg-muted">Click "preview" on a dataset to inspect it here.</p>}
           {preview?.error && <p className="text-sm text-red-400">{preview.error}</p>}
           {preview && !preview.error && (
             <div className="text-xs">
-              <p className="mb-2 text-slate-400">
+              <p className="mb-2 text-fg-muted">
                 {preview.n_documents} documents · {preview.n_questions} questions
               </p>
               <p className="label">Sample document</p>
-              <p className="mb-3 rounded-lg bg-ink-900/60 p-2 text-slate-300">{preview.sample_document}</p>
+              <p className="mb-3 rounded-lg bg-ink-900/60 p-2 text-fg">{preview.sample_document}</p>
               <p className="label">Questions</p>
               <ul className="flex flex-col gap-1">
                 {preview.questions?.slice(0, 8).map((q: string, i: number) => (
-                  <li key={i} className="rounded-lg bg-ink-900/40 p-2 text-slate-300">
+                  <li key={i} className="rounded-lg bg-ink-900/40 p-2 text-fg">
                     {q}
                     {preview.reference_answers?.[i] && (
-                      <span className="text-slate-500"> → {preview.reference_answers[i]}</span>
+                      <span className="text-fg-muted"> → {preview.reference_answers[i]}</span>
                     )}
                   </li>
                 ))}

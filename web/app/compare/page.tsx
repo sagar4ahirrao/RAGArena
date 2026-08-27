@@ -135,14 +135,14 @@ export default function ComparePage() {
             "⚔ Run comparison"
           )}
         </button>
-        {status && <span className="text-xs text-slate-400">{status}</span>}
+        {status && <span className="text-xs text-fg-muted">{status}</span>}
       </div>
 
       {rows.length > 0 && (
         <div className="card mt-6 overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="text-slate-500">
+              <tr className="text-fg-muted">
                 <th className="pb-2 pr-4">Config</th>
                 {cols.map((c) => (
                   <th key={c} className="pb-2 pr-4">
@@ -153,7 +153,7 @@ export default function ComparePage() {
             </thead>
             <tbody>
               {rows.map((r: any) => (
-                <tr key={r.config} className="border-t border-white/5">
+                <tr key={r.config} className="border-t border-line/5">
                   <td className="py-2 pr-4 font-medium">{r.config}</td>
                   {cols.map((c) => (
                     <td key={c} className="py-2 pr-4">
