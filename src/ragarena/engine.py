@@ -34,6 +34,18 @@ from .router import completion, Usage, MissingAPIKeyError
 from .strategies import Chunk, StrategyResult, get_strategy, STRATEGIES
 
 
+def _model_label(m: Any) -> str:
+    """A JSON-serializable, human-readable label for any `model`/
+    `embedding_model`/`judge_model` value — passes strings through
+    unchanged, and gives a bring-your-own-model object (LangChain model,
+    plain callable, ...) a stable label instead of the live object itself,
+    since EvaluationReport must stay serializable via .save()/.to_dict()."""
+    if isinstance(m, str):
+        return m
+    label = getattr(m, "model_name", None) or getattr(m, "model", None) or type(m).__name__
+    return f"custom/{label}"
+
+
 def _print(*args, **kwargs) -> None:
     """print() that never crashes on non-UTF-8 consoles (e.g. Windows cp1252)."""
     try:
@@ -76,14 +88,18 @@ class EvaluationReport:
     wall_time_s: float = 0.0
     created_at: str = ""
 
-    def summary(self) -> Dict[str, float]:
-        """Mean score per metric across all samples."""
+    def _per_metric_scores(self) -> Dict[str, List[float]]:
         agg: Dict[str, List[float]] = {}
         for s in self.samples:
             for mname, m in s.metrics.items():
                 if mname in ("latency_s", "cost_usd", "total_tokens"):
                     continue          # operational metrics summarized separately
                 agg.setdefault(mname, []).append(m["score"])
+        return agg
+
+    def summary(self) -> Dict[str, float]:
+        """Mean score per metric across all samples."""
+        agg = self._per_metric_scores()
         out = {k: round(statistics.fmean(v), 4) for k, v in agg.items()}
         lat = [s.latency_s for s in self.samples if s.latency_s is not None]
         if lat:
@@ -94,12 +110,39 @@ class EvaluationReport:
         out["total_tokens"] = self.total_tokens
         return out
 
+    def confidence_intervals(self, level: float = 0.95) -> Dict[str, Optional[List[float]]]:
+        """[low, high] confidence interval per quality metric, across the
+        per-sample scores already collected — no extra LLM/embedding calls.
+
+        Uses a normal approximation (mean ± z * stdev/sqrt(n)); this is a
+        reasonable estimate for typical run sizes but widens fast below ~10
+        samples, and with fewer than 2 samples there's no variance to
+        estimate at all (returns None). Use this to sanity-check a
+        `compare()`/`recommend_strategy()` leaderboard — if two strategies'
+        intervals overlap heavily, the ranking between them may be noise
+        rather than a real quality difference.
+        """
+        import math
+        z = {0.90: 1.645, 0.95: 1.960, 0.99: 2.576}.get(round(level, 2), 1.960)
+        out: Dict[str, Optional[List[float]]] = {}
+        for k, vals in self._per_metric_scores().items():
+            n = len(vals)
+            if n < 2:
+                out[k] = None
+                continue
+            mean = statistics.fmean(vals)
+            sd = statistics.stdev(vals)
+            half = z * sd / math.sqrt(n)
+            out[k] = [round(max(0.0, mean - half), 4), round(min(1.0, mean + half), 4)]
+        return out
+
     def to_dict(self) -> dict:
         return {
             "run_id": self.run_id, "strategy": self.strategy,
             "model": self.model, "embedding_model": self.embedding_model,
             "judge_model": self.judge_model,
             "aggregate": self.summary(),
+            "confidence_intervals": self.confidence_intervals(),
             "total_cost_usd": round(self.total_cost_usd, 6),
             "total_tokens": self.total_tokens,
             "wall_time_s": round(self.wall_time_s, 2),
@@ -111,8 +154,26 @@ class EvaluationReport:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
 
+    @classmethod
+    def load(cls, path: str) -> "EvaluationReport":
+        """Reload a report previously written by ``.save()`` — enables
+        comparing two runs (e.g. before/after a prompt or model change) via
+        ``diff_runs()`` without needing to re-run either evaluation."""
+        with open(path, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        samples = [SampleResult(question=s["question"], reference_answer=s["reference_answer"],
+                                answer=s["answer"], chunks=s["chunks"], metrics=s["metrics"],
+                                latency_s=s["latency_s"], usage=s["usage"])
+                  for s in d.get("samples", [])]
+        return cls(run_id=d["run_id"], strategy=d["strategy"], model=d["model"],
+                   embedding_model=d["embedding_model"], judge_model=d["judge_model"],
+                   samples=samples, total_cost_usd=d.get("total_cost_usd", 0.0),
+                   total_tokens=d.get("total_tokens", 0), wall_time_s=d.get("wall_time_s", 0.0),
+                   created_at=d.get("created_at", ""))
+
     def print_summary(self) -> None:
         r = self.summary()
+        ci = self.confidence_intervals()
         _print(f"\n╭─ RagArena · {self.strategy} · {self.model}")
         _print(f"├─ embedding : {self.embedding_model}")
         _print(f"├─ samples   : {len(self.samples)}   wall time {self.wall_time_s:.1f}s")
@@ -120,6 +181,9 @@ class EvaluationReport:
         for k, v in r.items():
             label = k.replace("_", " ").rjust(18)
             val = f"${v:.6f}" if k == "total_cost_usd" else f"{v}"
+            interval = ci.get(k)
+            if interval:
+                val += f"   (95% CI: {interval[0]}–{interval[1]})"
             _print(f"│  {label} : {val}")
         _print("╰" + "─" * 58)
 
@@ -184,8 +248,8 @@ def evaluate(
     refs = reference_answers or [None] * len(questions)
     report = EvaluationReport(
         run_id=uuid.uuid4().hex[:12],
-        strategy=strategy, model=model,
-        embedding_model=index.embedding_model, judge_model=judge_model,
+        strategy=strategy, model=_model_label(model),
+        embedding_model=_model_label(index.embedding_model), judge_model=_model_label(judge_model),
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     t_wall = time.perf_counter()
@@ -234,6 +298,76 @@ def evaluate(
 
     report.wall_time_s = time.perf_counter() - t_wall
     return report
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Run-to-run regression tracking
+# ──────────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class RunDiff:
+    run_id_a: str
+    run_id_b: str
+    label_a: str
+    label_b: str
+    deltas: Dict[str, Dict[str, Optional[float]]]     # metric -> {before, after, delta}
+
+    def regressions(self, threshold: float = 0.0) -> List[str]:
+        """Metric names that got WORSE by more than `threshold` from A to B
+        (accounting for higher_is_better metrics like latency_s/cost_usd,
+        where a smaller-is-better metric increasing counts as a regression)."""
+        worse_when_lower = {"latency_s", "cost_usd", "total_tokens",
+                            "p50_latency_s", "avg_latency_s", "p95_latency_s"}
+        out = []
+        for name, d in self.deltas.items():
+            delta = d.get("delta")
+            if delta is None:
+                continue
+            base = name.split("_ci")[0]
+            is_cost_like = any(base == w or base.startswith(w) for w in worse_when_lower)
+            regressed = delta < -threshold if not is_cost_like else delta > threshold
+            if regressed:
+                out.append(name)
+        return out
+
+    def to_dict(self) -> dict:
+        return {"run_id_a": self.run_id_a, "run_id_b": self.run_id_b,
+                "label_a": self.label_a, "label_b": self.label_b, "deltas": self.deltas}
+
+    def print_diff(self) -> None:
+        _print(f"\n╭─ diff: {self.label_a}  →  {self.label_b}")
+        _print("├" + "─" * 58)
+        regressed = set(self.regressions())
+        for name, d in self.deltas.items():
+            arrow = "▼" if name in regressed else ("▲" if d["delta"] and d["delta"] != 0 else "·")
+            _print(f"│  {name.rjust(18)} : {d['before']:>10} -> {d['after']:>10}   "
+                   f"{arrow} {d['delta']:+.4f}")
+        _print("╰" + "─" * 58)
+        if regressed:
+            _print(f"⚠ possible regressions: {', '.join(sorted(regressed))}")
+
+
+def diff_runs(report_a: EvaluationReport, report_b: EvaluationReport) -> RunDiff:
+    """Per-metric score delta between two evaluation runs — e.g. before/after
+    swapping a strategy, model, or prompt — so a quality change can be
+    confirmed as real rather than eyeballed from two separate summaries.
+    Works on any two EvaluationReports, including ones reloaded via
+    ``EvaluationReport.load(path)`` from previously saved JSON.
+    """
+    a, b = report_a.summary(), report_b.summary()
+    keys = sorted(set(a) | set(b))
+    deltas: Dict[str, Dict[str, Optional[float]]] = {}
+    for k in keys:
+        av, bv = a.get(k), b.get(k)
+        if av is None or bv is None:
+            continue
+        deltas[k] = {"before": av, "after": bv, "delta": round(bv - av, 4)}
+    return RunDiff(
+        run_id_a=report_a.run_id, run_id_b=report_b.run_id,
+        label_a=f"{report_a.strategy}·{report_a.model}",
+        label_b=f"{report_b.strategy}·{report_b.model}",
+        deltas=deltas,
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -368,6 +502,25 @@ class RecommendationResult:
             _print(f"{i:<5}{row['strategy']:<16}{row['composite_score']:<8}"
                    f"{row['total_cost_usd']:<12}{row['avg_latency_s']}")
 
+    def code_snippet(self, model: str = "openai/gpt-4o-mini",
+                     embedding_model: str = "openai/text-embedding-3-small") -> str:
+        """Ready-to-paste Python using the winning strategy — the fastest
+        path from "recommend_strategy() says X is best" to actually shipping
+        with X, via the plug-and-play `answer()` one-liner."""
+        if not self.best:
+            return "# no strategy was successfully evaluated — nothing to recommend"
+        return (
+            "from ragarena import answer\n\n"
+            "result = answer(\n"
+            "    query=\"your question here\",\n"
+            "    documents=[{\"text\": \"...\"}],  # your corpus\n"
+            f"    strategy=\"{self.best}\",  # chosen by recommend_strategy() as best for this dataset\n"
+            f"    model=\"{model}\",\n"
+            f"    embedding_model=\"{embedding_model}\",\n"
+            ")\n"
+            "print(result)"
+        )
+
 
 def recommend_strategy(
     questions: List[str],
@@ -443,3 +596,104 @@ def recommend_strategy(
     ) if rows else "no strategies evaluated"
 
     return RecommendationResult(leaderboard=rows, best=best, reasoning=reasoning, comparison=cmp_res)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Plug-and-play answering — drop RagArena into any app as its RAG layer, not
+# only as an offline evaluator. `strategy="auto"` reuses recommend_strategy()
+# to pick a strategy for a document set once, then reuses that choice on
+# every later call — so "which strategy is best for my data" only costs a
+# real evaluation the first time, not per query.
+# ──────────────────────────────────────────────────────────────────────────────
+
+_AUTO_STRATEGY_CACHE: Dict[str, str] = {}
+_AUTO_FALLBACK_STRATEGY = "hybrid"     # used when strategy="auto" has no eval
+                                        # questions to actually judge quality with
+
+
+def _fingerprint_documents(documents: List[Dict[str, Any]]) -> str:
+    import hashlib
+    h = hashlib.md5()
+    for d in documents:
+        h.update(str(d.get("text", "") if isinstance(d, dict) else d).encode("utf-8", "ignore"))
+    return h.hexdigest()
+
+
+def answer(
+    query: str,
+    documents: Optional[List[Dict[str, Any]]] = None,
+    index: Optional[VectorIndex] = None,
+    strategy: str = "auto",
+    strategy_config: Optional[Dict[str, Any]] = None,
+    model: str = "openai/gpt-4o-mini",
+    embedding_model: str = "openai/text-embedding-3-small",
+    auto_eval_questions: Optional[List[str]] = None,
+    auto_reference_answers: Optional[List[Optional[str]]] = None,
+    auto_strategies: Optional[List[str]] = None,
+    return_details: bool = False,
+) -> Union[str, Dict[str, Any]]:
+    """
+    Plug-and-play RAG answering — the single call needed to use RagArena as
+    the RAG layer inside any app, not just as an offline evaluator: point it
+    at your documents, ask a question, get an answer back.
+
+        from ragarena import answer
+        result = answer(query="What is RAG?",
+                        documents=[{"text": "RAG = retrieval-augmented generation..."}])
+
+    Args:
+        query: the user's question.
+        documents / index: same as evaluate() — provide one.
+        strategy: any of the 18 strategy names, or "auto" (default) to pick
+            automatically. "auto" evaluates `auto_strategies` (default: all
+            18) against `auto_eval_questions` — a small set of REAL
+            representative questions for this document set, ideally with
+            `auto_reference_answers` — the first time it sees a given
+            document set, then caches and reuses the winner for every later
+            call with the same documents (for the lifetime of the process).
+            Without `auto_eval_questions`, there's no data to judge quality
+            from, so it falls back to "hybrid" (a strong general-purpose
+            default) rather than pretending to have picked it empirically.
+        model / embedding_model: as in evaluate().
+        return_details: return a dict with chunks/usage/latency/the
+            recommendation (if "auto" ran one) instead of just the answer string.
+
+    Returns:
+        The generated answer (str), or a details dict if return_details=True.
+    """
+    if index is None:
+        if not documents:
+            raise ValueError("Provide either `documents` or a prebuilt `index`.")
+        index = VectorIndex(embedding_model=embedding_model)
+        index.add_documents(documents)
+
+    chosen = strategy
+    rec: Optional[RecommendationResult] = None
+    if strategy == "auto":
+        fp = _fingerprint_documents(documents) if documents else f"index::{id(index)}"
+        if fp in _AUTO_STRATEGY_CACHE:
+            chosen = _AUTO_STRATEGY_CACHE[fp]
+        elif auto_eval_questions and documents:
+            rec = recommend_strategy(
+                questions=auto_eval_questions, documents=documents,
+                reference_answers=auto_reference_answers,
+                strategies=auto_strategies, model=model, embedding_model=index.embedding_model,
+                metrics="quick" if not auto_reference_answers else "quality",
+            )
+            chosen = rec.best or _AUTO_FALLBACK_STRATEGY
+            _AUTO_STRATEGY_CACHE[fp] = chosen
+        else:
+            chosen = _AUTO_FALLBACK_STRATEGY
+            _AUTO_STRATEGY_CACHE[fp] = chosen
+
+    strat = get_strategy(chosen, **(strategy_config or {}))
+    sr: StrategyResult = strat.run(query, index, model, index.embedding_model)
+
+    if return_details:
+        return {
+            "answer": sr.answer, "strategy": chosen,
+            "chunks": [c.to_dict() for c in sr.chunks],
+            "usage": sr.usage.to_dict(), "latency_s": sr.latency_s,
+            "recommendation": rec.to_dict() if rec else None,
+        }
+    return sr.answer

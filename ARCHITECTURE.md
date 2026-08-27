@@ -69,10 +69,12 @@ see [CHANGELOG.md](CHANGELOG.md).
 | `graph.py` | `GraphIndex` — lazy per-corpus knowledge graph: entity extraction per chunk (LLM-based, falls back to a deterministic keyword extractor), community clustering, local/global summarization. |
 | `strategies.py` | 18 `Strategy` implementations, one `run(query, index, llm_model, embedding_model)` interface each — interchangeable inside `evaluate()`/`compare()`. |
 | `metrics.py` | `BaseMetric` implementations (retrieval + LLM-judged + operational), `DEFAULT_METRIC_SETS` presets (`quick`/`quality`/`full`/`production`). |
-| `engine.py` | `evaluate()` (one strategy, full report), `compare()` (N strategy×model configs on a *shared* index, leaderboard), `recommend_strategy()` (compares every strategy, returns a composite-scored ranking + a single recommendation). |
+| `engine.py` | `evaluate()` (one strategy, full report), `compare()` (N strategy×model configs on a *shared* index, leaderboard), `recommend_strategy()` (compares every strategy, returns a composite-scored ranking + a single recommendation), `answer()` (plug-and-play single-query answering, with `strategy="auto"` picking a strategy via `recommend_strategy()` once per document set and caching it), `diff_runs()` (per-metric delta between two `EvaluationReport`s, e.g. from `EvaluationReport.load()`). |
+| `testgen.py` | `generate_testset()` / `generate_testset_detailed()` — samples chunks from source documents and has an LLM write grounded simple/reasoning/multi-passage questions + reference answers, shaped for `evaluate()`. |
+| `testing.py` | `assert_metric()` / `assert_no_regression()` — pytest-style assertions over an `EvaluationReport`/`RunDiff`, for gating CI on RAG quality. |
 | `ingest.py` | `parse_file()` / `parse_dir()` — multi-format document parsing (see Feature list below) into `{"text", "tables", "images", "metadata"}` dicts; `to_multimodal()` bridges into `MultimodalDocument`; `from_sql()` pulls rows from any SQLAlchemy-supported database. |
 | `datasets.py` | `DATASET_REGISTRY` — bundled offline QA sets + HuggingFace-backed loaders for popular benchmarks. `load_dataset(name, n, use_bundled)`. |
-| `cli.py` | `ragarena serve\|ui\|models\|strategies\|run\|compare\|recommend`. |
+| `cli.py` | `ragarena serve\|ui\|models\|strategies\|ask\|testgen\|diff\|run\|compare\|recommend`. |
 | `api/server.py` | FastAPI app: catalog/strategy/metric/dataset endpoints, async job-based `/api/evaluate`, `/api/compare`, `/api/recommend` (submit → poll `/api/runs/{id}`), file upload, and serves the compiled Next.js UI (`api/ui_dist/`, falling back to the legacy `api/dashboard.html` if the UI wasn't built into the install). |
 | `web/` | Next.js 14 (App Router, TypeScript, Tailwind) playground UI. Statically exported at build time (`NEXT_STATIC_EXPORT=1 next build`) — no Node needed at runtime; served by FastAPI as plain files. |
 

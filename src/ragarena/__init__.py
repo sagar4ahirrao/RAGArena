@@ -33,16 +33,20 @@ from .strategies import (
 from .graph import GraphIndex
 from .metrics import METRICS, DEFAULT_METRIC_SETS, MetricResult
 from .index import VectorIndex, TextChunker, chunk_text, MultimodalDocument
-from .engine import evaluate, compare, recommend_strategy, EvaluationReport, ComparisonResult, RecommendationResult
+from .engine import (
+    evaluate, compare, recommend_strategy, diff_runs, answer,
+    EvaluationReport, ComparisonResult, RecommendationResult, RunDiff,
+)
 from .ingest import parse_file, parse_dir, to_multimodal, from_sql
 from .datasets import load_dataset, list_datasets, DATASET_REGISTRY
+from .testgen import generate_testset, generate_testset_detailed, TestCase
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "RagArena contributors"
 
 __all__ = [
     # one-liner APIs
-    "completion", "embedding", "rerank", "evaluate", "compare", "recommend_strategy",
+    "completion", "embedding", "rerank", "evaluate", "compare", "recommend_strategy", "diff_runs", "answer",
     # catalog
     "list_models", "list_providers", "get_model", "has_model", "estimate_cost",
     "UnknownModelError", "MissingAPIKeyError",
@@ -59,8 +63,10 @@ __all__ = [
     # ingestion / datasets
     "parse_file", "parse_dir", "to_multimodal", "from_sql",
     "load_dataset", "list_datasets", "DATASET_REGISTRY",
+    # synthetic test-set generation
+    "generate_testset", "generate_testset_detailed", "TestCase",
     # metrics / index / engine
     "METRICS", "DEFAULT_METRIC_SETS", "MetricResult",
     "VectorIndex", "TextChunker", "chunk_text",
-    "EvaluationReport", "ComparisonResult", "RecommendationResult",
+    "EvaluationReport", "ComparisonResult", "RecommendationResult", "RunDiff",
 ]

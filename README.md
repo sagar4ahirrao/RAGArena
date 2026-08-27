@@ -112,6 +112,36 @@ report.save("report.json")
 ╰──────────────────────────────────────────────────────────
 ```
 
+## 🔌 Drop it into any app as your RAG layer
+
+RagArena isn't only an offline evaluator — `answer()` uses it to actually answer questions,
+with `strategy="auto"` picking the best strategy for YOUR documents automatically:
+
+```python
+from ragarena import answer
+
+# strategy="auto" (default): evaluates candidate strategies against a few real sample
+# questions the first time it sees this document set, caches the winner, reuses it after
+result = answer(
+    query="What is RAG?",
+    documents=docs,
+    auto_eval_questions=["What is RAG?", "How does hybrid retrieval work?"],
+)
+print(result)   # -> the answer string
+
+# or pin a specific strategy directly, same as evaluate()
+answer(query="What is RAG?", documents=docs, strategy="hybrid")
+```
+
+No eval questions available yet? Auto-generate them from your own documents:
+
+```python
+from ragarena import generate_testset, evaluate
+
+questions, references = generate_testset(docs, n=20, model="openai/gpt-4o-mini")
+report = evaluate(questions=questions, reference_answers=references, documents=docs)
+```
+
 ## 🏆 Find the best strategy/model in one call
 
 ```python
@@ -154,6 +184,7 @@ rec = recommend_strategy(
 )
 rec.print_summary()
 print(rec.best, rec.reasoning)
+print(rec.code_snippet())   # ready-to-paste answer() call using the winning strategy
 ```
 
 Also available as `ragarena recommend --documents ... --questions ...` (CLI) and
@@ -380,6 +411,22 @@ instead of trusting one sample:
 evaluate(questions=[...], documents=docs, judge_samples=3)
 # report includes score_stdev and all_scores per metric
 ```
+
+## ✅ Regression-check runs, gate CI on quality
+
+```python
+from ragarena import evaluate, diff_runs, EvaluationReport
+from ragarena.testing import assert_metric, assert_no_regression
+
+report = evaluate(questions=Q, documents=DOCS, reference_answers=REFS, strategy="hybrid")
+assert_metric(report, "faithfulness", gte=0.8)      # fails like a normal assert if it drops below
+
+report.save("latest.json")
+old = EvaluationReport.load("baseline.json")
+assert_no_regression(diff_runs(old, report))        # fails if any metric got worse
+```
+
+`RagArena diff --a baseline.json --b latest.json` does the same check from the CLI.
 
 ## 📦 Use inside your existing pipeline
 

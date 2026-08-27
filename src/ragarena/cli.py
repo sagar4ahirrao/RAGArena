@@ -3,7 +3,10 @@ RagArena CLI.
 
     RagArena serve                          → web dashboard at localhost:4000
     RagArena models list [--provider X]     → browse 100+ model catalog
+    RagArena ask --query "..." --documents ... → get an answer (strategy='auto' picks the best one)
+    RagArena testgen --documents ...        → generate a synthetic Q&A test set
     RagArena run --strategy hybrid ...      → CLI evaluation
+    RagArena diff --a run1.json --b run2.json → regression check between two runs
     RagArena compare --configs c1.yaml ...  → head-to-head benchmark
     RagArena recommend --documents ... --questions ... → best strategy for YOUR data
 """
@@ -128,6 +131,53 @@ def cmd_recommend(args):
         print(f"saved -> {args.save}")
 
 
+def cmd_ask(args):
+    from .engine import answer
+
+    docs = [{"text": t} for t in args.documents]
+    eval_qs = [q.strip() for q in (args.auto_questions or "").split(",") if q.strip()] or None
+
+    result = answer(
+        query=args.query, documents=docs, strategy=args.strategy,
+        model=args.model, embedding_model=args.embedding,
+        auto_eval_questions=eval_qs, return_details=True,
+    )
+    print(f"\nstrategy used : {result['strategy']}")
+    print(f"answer        : {result['answer']}")
+    print(f"latency       : {result['latency_s']:.2f}s")
+
+
+def cmd_testgen(args):
+    from .testgen import generate_testset_detailed
+
+    docs = [{"text": t} for t in args.documents]
+    cases = generate_testset_detailed(
+        docs, n=args.n, model=args.model,
+        chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap,
+        seed=args.seed,
+    )
+    for i, c in enumerate(cases, 1):
+        print(f"\n[{i}] ({c.question_type}) {c.question}\n    -> {c.reference_answer}")
+    print(f"\ngenerated {len(cases)} question(s)")
+    if args.save:
+        with open(args.save, "w", encoding="utf-8") as f:
+            json.dump([c.to_dict() for c in cases], f, indent=2)
+        print(f"saved -> {args.save}")
+
+
+def cmd_diff(args):
+    from .engine import EvaluationReport, diff_runs
+
+    report_a = EvaluationReport.load(args.a)
+    report_b = EvaluationReport.load(args.b)
+    d = diff_runs(report_a, report_b)
+    d.print_diff()
+    if args.save:
+        with open(args.save, "w", encoding="utf-8") as f:
+            json.dump(d.to_dict(), f, indent=2)
+        print(f"saved -> {args.save}")
+
+
 def cmd_serve(args):
     from .api.server import start_server
     url = f"http://localhost:{args.port}"
@@ -216,6 +266,35 @@ def build_parser():
                     help="average N independent judge calls to reduce LLM-judge variance (default 1)")
     rp.add_argument("--save")
     rp.set_defaults(fn=cmd_run)
+
+    # ask — plug-and-play answering (not just evaluation)
+    ap = sub.add_parser("ask", help="get an answer from your documents (strategy='auto' picks the best one)")
+    ap.add_argument("--query", required=True)
+    ap.add_argument("--documents", nargs="+", required=True)
+    ap.add_argument("--strategy", default="auto", help="strategy name, or 'auto' to pick the best one")
+    ap.add_argument("--auto-questions", dest="auto_questions",
+                    help="comma-separated sample questions used to pick the strategy when --strategy=auto")
+    ap.add_argument("--model", default="openai/gpt-4o-mini")
+    ap.add_argument("--embedding", default="openai/text-embedding-3-small")
+    ap.set_defaults(fn=cmd_ask)
+
+    # testgen
+    tp = sub.add_parser("testgen", help="generate a synthetic Q&A test set from documents")
+    tp.add_argument("--documents", nargs="+", required=True)
+    tp.add_argument("--n", type=int, default=20, help="number of questions to generate")
+    tp.add_argument("--model", default="openai/gpt-4o-mini")
+    tp.add_argument("--chunk-size", type=int, default=1000, dest="chunk_size")
+    tp.add_argument("--chunk-overlap", type=int, default=150, dest="chunk_overlap")
+    tp.add_argument("--seed", type=int, default=None)
+    tp.add_argument("--save", help="save generated cases to a JSON file")
+    tp.set_defaults(fn=cmd_testgen)
+
+    # diff
+    dp = sub.add_parser("diff", help="compare two saved evaluation runs (regression check)")
+    dp.add_argument("--a", required=True, help="path to first run's saved JSON")
+    dp.add_argument("--b", required=True, help="path to second run's saved JSON")
+    dp.add_argument("--save", help="save the diff to a JSON file")
+    dp.set_defaults(fn=cmd_diff)
 
     # compare
     cp = sub.add_parser("compare", help="benchmark multiple configs")

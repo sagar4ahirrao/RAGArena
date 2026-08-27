@@ -3,6 +3,53 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-08-27
+
+Adds a production "use it, not just evaluate it" surface, plus test-set
+generation and CI-grade regression tooling — informed by a survey of the
+open-source RAG-eval landscape (Ragas, DeepEval, TruLens, RAGChecker, ARES,
+Arize Phoenix, Giskard, LangSmith).
+
+### Added
+- **`answer()` — plug-and-play RAG answering**: use RagArena as the RAG
+  layer inside any app, not only as an offline evaluator —
+  `answer(query="...", documents=[...])` returns an answer directly.
+  `strategy="auto"` (the default) evaluates candidate strategies against a
+  small set of representative `auto_eval_questions` the first time it sees
+  a document set (via `recommend_strategy()` under the hood), caches the
+  winner, and reuses it on every later call — falls back to `"hybrid"` when
+  no eval questions are given, rather than pretending to pick empirically.
+  Also available via `ragarena ask --query ... --documents ...`.
+- **`RecommendationResult.code_snippet()`**: `recommend_strategy()` results
+  now include a ready-to-paste Python snippet using `answer()` with the
+  winning strategy — closes the gap between "here's the best strategy" and
+  actually shipping with it.
+- **`generate_testset()` / `generate_testset_detailed()`**: synthetic
+  question+reference-answer generation from your own documents (mixing
+  simple/reasoning/multi-passage question types), so comparing strategies
+  at scale doesn't require hand-writing a question set first. Also
+  available via `ragarena testgen --documents ...`.
+- **`diff_runs()` / `EvaluationReport.load()`**: compare two saved
+  evaluation runs (e.g. before/after a strategy, model, or prompt change)
+  and flag per-metric regressions, correctly accounting for lower-is-better
+  metrics like latency/cost. Also available via
+  `ragarena diff --a run1.json --b run2.json`.
+- **`ragarena.testing`**: `assert_metric()` / `assert_no_regression()` —
+  pytest-style assertions over an `EvaluationReport`/`RunDiff`, for gating
+  CI on RAG quality the same way you'd gate on a unit test.
+- **Confidence intervals on metric scores**: `EvaluationReport.confidence_intervals()`
+  reports a 95% CI per quality metric across the run's samples (normal
+  approximation), surfaced in `print_summary()`/`to_dict()` — makes it
+  possible to tell whether a `compare()`/`recommend_strategy()` ranking
+  reflects a real difference or sample noise.
+
+### Fixed
+- `EvaluationReport.save()` crashed with `TypeError: Object of type function
+  is not JSON serializable` when `model`/`embedding_model`/`judge_model` was
+  a bring-your-own-model object (LangChain model or plain callable) rather
+  than a string — the report now stores a stable label (`custom/<name>`)
+  for non-string models instead of the live object.
+
 ## [0.3.0] — 2026-08-27
 
 Reliability and extensibility release, in direct response to feedback that
