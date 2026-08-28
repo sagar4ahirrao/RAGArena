@@ -312,20 +312,28 @@ class RunDiff:
     label_b: str
     deltas: Dict[str, Dict[str, Optional[float]]]     # metric -> {before, after, delta}
 
+    # Metrics where a SMALLER number is better, so an increase is the
+    # regression. Matched exactly against the keys EvaluationReport.summary()
+    # actually emits — a prefix match would miss 'total_cost_usd' (it does not
+    # start with 'cost_usd'), silently treating a cost blow-up as an improvement.
+    LOWER_IS_BETTER = frozenset({
+        "latency_s", "p50_latency_s", "avg_latency_s", "p95_latency_s",
+        "cost_usd", "total_cost_usd", "total_tokens",
+    })
+
     def regressions(self, threshold: float = 0.0) -> List[str]:
-        """Metric names that got WORSE by more than `threshold` from A to B
-        (accounting for higher_is_better metrics like latency_s/cost_usd,
-        where a smaller-is-better metric increasing counts as a regression)."""
-        worse_when_lower = {"latency_s", "cost_usd", "total_tokens",
-                            "p50_latency_s", "avg_latency_s", "p95_latency_s"}
+        """Metric names that got WORSE by more than `threshold` from A to B —
+        quality metrics count as regressed when they fall, latency/cost/token
+        metrics when they rise."""
         out = []
         for name, d in self.deltas.items():
             delta = d.get("delta")
             if delta is None:
                 continue
-            base = name.split("_ci")[0]
-            is_cost_like = any(base == w or base.startswith(w) for w in worse_when_lower)
-            regressed = delta < -threshold if not is_cost_like else delta > threshold
+            if name in self.LOWER_IS_BETTER:
+                regressed = delta > threshold
+            else:
+                regressed = delta < -threshold
             if regressed:
                 out.append(name)
         return out

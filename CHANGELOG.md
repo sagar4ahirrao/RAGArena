@@ -3,6 +3,55 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-08-28
+
+Vector stores become swappable (and therefore benchmarkable), plus five real
+bugs found by a full live verification pass over every feature.
+
+### Added
+- **Pluggable vector-store backends**: `VectorIndex(backend="numpy"|"faiss"|
+  "chroma"|"qdrant"|"lancedb", **backend_kwargs)`. Backends receive
+  already-embedded vectors, so swapping one changes only storage and ANN
+  search — identical corpus, embeddings and strategies on top — which is
+  what makes a fair "which vector DB is best for my data" comparison
+  possible. All in-process: qdrant uses `:memory:`, lancedb a temp dir, so
+  no server is needed for a benchmark run. Verified live: numpy/faiss/
+  qdrant/lancedb return identical scores to 4 decimal places on the same
+  corpus and all pass end-to-end through `evaluate()`.
+- `register_backend()` as the extension point for server-backed stores
+  (Weaviate, Milvus, pgvector, Elasticsearch, Redis, Pinecone);
+  `list_backends()` reports availability instead of crashing on a missing
+  optional dependency; `ragarena backends` surfaces it from the CLI.
+- New `vectordb` extra: `pip install ragarena[vectordb]` (included in `all`).
+
+### Fixed
+- **`rag_fusion` was completely broken** — it sorted retrieved chunks by the
+  `Chunk` objects themselves rather than by their Reciprocal Rank Fusion
+  scores, so every run failed with `'<' not supported between instances of
+  'Chunk' and 'Chunk'` and the computed RRF scores were never used. A second
+  latent crash (`.items()` on a list) in the same method is fixed too.
+  All 18 strategies now pass a live end-to-end run; previously 17 did.
+- **`RunDiff.regressions()` had cost backwards** — the lower-is-better set
+  listed `cost_usd`, but the aggregate key is `total_cost_usd`, and the
+  prefix check never matched it. A cost *reduction* was reported as a
+  regression while a real cost *blow-up* was silently missed, which
+  undermined `assert_no_regression()` in CI. Now matched exactly against the
+  keys `summary()` actually emits.
+- **`load_dataset(name, use_bundled=True)` silently returned a different
+  corpus** — any non-bundled name (squad, hotpotqa, natural_questions,
+  triviaqa, ms_marco) got rag_faq's content back with no indication, making
+  any benchmark labelled with those names wrong. It now emits a `UserWarning`
+  naming the substitution. The bundled-dataset list is derived from the
+  registry so it can't drift.
+- **`ragarena compare --inline` could never work** — it crashed with
+  `'NoneType' object is not iterable` when `--configs` was omitted, and the
+  emptiness check ran before `--inline` was collected. `--inline` now works
+  on its own and accepts a JSON array as well as a single object.
+- **Removed the dead `google/text-embedding-004` catalog entry** — Google
+  retired the model and the live API returns 404 for it, so listing it only
+  offered a choice that could never work (including in the playground's
+  model dropdown). Use `google/gemini-embedding-001`.
+
 ## [0.4.0] — 2026-08-27
 
 Adds a production "use it, not just evaluate it" surface, plus test-set

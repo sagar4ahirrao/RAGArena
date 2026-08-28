@@ -165,6 +165,13 @@ DATASET_REGISTRY: Dict[str, Dict[str, Any]] = {
 }
 
 
+# Datasets that ship with the package and need no network/HuggingFace access.
+# Derived from the registry so it can't drift out of sync with it.
+BUNDLED_DATASETS = frozenset(
+    name for name, meta in DATASET_REGISTRY.items() if meta.get("offline")
+)
+
+
 def list_datasets() -> List[Dict[str, Any]]:
     return [{"name": k, **{kk: vv for kk, vv in v.items() if kk != "loader"}}
             for k, v in DATASET_REGISTRY.items()]
@@ -175,13 +182,22 @@ def load_dataset(
 ) -> Tuple[List[Dict[str, Any]], List[str], List[Optional[str]]]:
     """Load a dataset by name.
 
-    `n` caps documents/questions for HF-backed sets. When `use_bundled` is set,
-    an offline bundled dataset is returned instead (falls back to 'rag_faq' if
-    `name` isn't itself a bundled entry) — useful when no network/HF access is
-    available.
+    `n` caps documents/questions for HF-backed sets. When `use_bundled` is set
+    and `name` isn't itself a bundled entry, an offline bundled dataset
+    ('rag_faq') is substituted — useful with no network/HF access, but it is a
+    DIFFERENT corpus, so a warning is emitted rather than silently returning
+    rag_faq content labelled as, say, SQuAD.
     Returns ``(documents, questions, reference_answers)``.
     """
-    if use_bundled and name not in ("capitals", "rag_faq"):
+    if use_bundled and name not in BUNDLED_DATASETS:
+        import warnings
+        warnings.warn(
+            f"load_dataset({name!r}, use_bundled=True): '{name}' is not a bundled dataset, "
+            f"returning the bundled 'rag_faq' corpus instead — results are NOT from '{name}'. "
+            f"Bundled datasets: {', '.join(sorted(BUNDLED_DATASETS))}. "
+            f"Pass use_bundled=False to load the real '{name}' from HuggingFace.",
+            UserWarning, stacklevel=2,
+        )
         name = "rag_faq"
     if name not in DATASET_REGISTRY:
         raise KeyError(f"Unknown dataset '{name}'. Available: {', '.join(DATASET_REGISTRY)}")

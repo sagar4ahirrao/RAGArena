@@ -318,8 +318,9 @@ EMBEDDING_MODELS: List[ModelInfo] = [
        input_cost=0.10, description="1024-d multilingual"),
 
     # ── Google ──
-    _m("google/text-embedding-004", "google", "text-embedding-004", modality="embedding",
-        input_cost=0.0, description="Deprecated Gemini embeddings"),
+    # NOTE: 'google/text-embedding-004' was removed from this catalog — Google
+    # retired it and the live API now returns 404 for it, so listing it only
+    # offered users a model that could never work. Use gemini-embedding-001.
     _m("google/gemini-embedding-001", "google", "gemini-embedding-001", modality="embedding",
         input_cost=0.0, description="Free Gemini embeddings (3072-d)"),
 

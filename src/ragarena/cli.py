@@ -95,14 +95,16 @@ def cmd_compare(args):
     from .engine import compare
 
     cfgs = []
-    srcs = list(args.configs)
+    srcs = list(args.configs or [])          # --configs omitted -> None, not []
     if args.inline:
-        cfgs.append(json.loads(args.inline))
-    if not srcs:
-        sys.exit("provide --configs files or --inline '{...}'")
+        inline = json.loads(args.inline)
+        cfgs.extend(inline if isinstance(inline, list) else [inline])
     for path in srcs:
         loaded = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         cfgs.extend(loaded["configs"] if isinstance(loaded, dict) else loaded)
+    # check AFTER collecting both sources, so --inline alone is valid
+    if not cfgs:
+        sys.exit("provide --configs files or --inline '{...}'")
 
     docs = [{"text": t} for t in args.documents]
     questions = [l.strip() for l in args.questions.split(",") if l.strip()]

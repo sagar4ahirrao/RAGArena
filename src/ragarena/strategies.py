@@ -303,7 +303,10 @@ class RAGFusion(Strategy):
                 rrf[key] = rrf.get(key, 0) + 1.0 / (K + rank)
                 chunk_map.setdefault(key, c)
 
-        ranked = sorted(chunk_map.items(), key=lambda kv: kv[1], reverse=True)
+        # rank by the accumulated RRF score — sorting chunk_map by its Chunk
+        # values instead would both ignore the fusion scores and raise
+        # (Chunk isn't orderable), which is exactly what this used to do.
+        ranked = sorted(rrf.items(), key=lambda kv: kv[1], reverse=True)
         chunks = [chunk_map[k] for k, _ in ranked[: self.config.get("final_k", 6)]]
 
         context = "\n\n---\n\n".join(c.text for c in chunks)
@@ -316,7 +319,8 @@ class RAGFusion(Strategy):
                             gen.usage.cost_usd + final.usage.cost_usd)
         total_usage.cost_usd += sum(u.cost_usd for u in index.last_embed_usage)
         return StrategyResult(final.text, chunks, context, total_usage,
-                              time.perf_counter() - t0, {"rrf_top": dict(list(ranked.items())[:3]) if ranked else {}})
+                              time.perf_counter() - t0,
+                              {"rrf_top": {k: round(v, 6) for k, v in ranked[:3]}})
 
 
 # ──────────────────────────────────────────────────────────────────────────────
