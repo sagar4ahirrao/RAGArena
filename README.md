@@ -446,6 +446,12 @@ VectorIndex(embedding_model=..., backend="chroma", host="localhost", port=8000)
 All nine return **identical similarity scores** on the same corpus, so a comparison
 measures the store, not an accidental difference in how it was configured.
 
+> **Benchmark Chroma before LanceDB.** They load conflicting native Arrow/Rust libraries:
+> once LanceDB has written a table, creating a Chroma client in the same process aborts
+> the interpreter outright (the process dies — it isn't a catchable exception). RagArena
+> warns when it detects this order; the fix is to run Chroma first, or give each backend
+> its own process.
+
 > **A note on Elasticsearch defaults.** Since 8.12 an indexed `dense_vector` defaults to
 > `int8_hnsw`, which quantizes vectors to 8 bits and shifts similarities by ~0.4% —
 > enough to reorder documents that are genuinely close, silently scoring a *different*

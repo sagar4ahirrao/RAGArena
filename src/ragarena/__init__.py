@@ -42,7 +42,7 @@ from .ingest import parse_file, parse_dir, to_multimodal, from_sql
 from .datasets import load_dataset, list_datasets, DATASET_REGISTRY
 from .testgen import generate_testset, generate_testset_detailed, TestCase
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 __author__ = "RagArena contributors"
 
 __all__ = [

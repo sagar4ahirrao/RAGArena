@@ -29,6 +29,15 @@ import numpy as np
 # (text, metadata, score) triples, best-first
 SearchHits = List[Tuple[str, Dict[str, Any], float]]
 
+# LanceDB and Chroma both load native Arrow/Rust libraries. Once LanceDB has
+# actually written a table, constructing a Chroma client in the same process
+# aborts the interpreter outright — not an exception we could catch, the
+# process simply dies. That matters here because the headline use case is
+# looping over every backend to benchmark them, which is exactly the pattern
+# that triggers it. The reverse order (Chroma first) is fine, so we warn and
+# name the fix rather than silently dying mid-benchmark.
+_LANCEDB_USED = False
+
 
 def _normalize(vectors: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
@@ -156,6 +165,15 @@ class ChromaBackend(VectorBackend):
     def __init__(self, collection_name: Optional[str] = None,
                  persist_directory: Optional[str] = None,
                  host: Optional[str] = None, port: int = 8000) -> None:
+        if _LANCEDB_USED:
+            import warnings
+            warnings.warn(
+                "Creating a Chroma backend after the LanceDB backend has been used in this "
+                "process can abort the interpreter (a native Arrow/Rust library conflict — "
+                "the process dies rather than raising). Benchmark Chroma BEFORE LanceDB, or "
+                "run each backend in its own process.",
+                RuntimeWarning, stacklevel=2,
+            )
         import chromadb
         if host:
             self._client = chromadb.HttpClient(host=host, port=port)
@@ -268,6 +286,8 @@ class LanceDBBackend(VectorBackend):
         self._count = 0
 
     def add(self, vectors, texts, metadatas):
+        global _LANCEDB_USED
+        _LANCEDB_USED = True
         vecs = _normalize(np.asarray(vectors, dtype=np.float32))
         # metadata is kept alongside rather than in the table so arbitrary
         # nested dicts don't have to fit a fixed Arrow schema
@@ -608,10 +628,41 @@ def get_backend(backend: Any = "numpy", **kwargs: Any) -> VectorBackend:
     try:
         return BACKENDS[backend](**kwargs)
     except ImportError as e:
-        raise ImportError(
-            f"Vector backend '{backend}' needs an extra package that isn't installed: {e}. "
-            f"Install it, or use backend='numpy' (built in, no dependencies)."
-        ) from e
+        raise ImportError(_import_error_help(backend, e)) from e
+
+
+def _import_error_help(backend: str, err: ImportError) -> str:
+    """Turn a backend's raw ImportError into something actionable.
+
+    A missing package and an *incompatible* one fail the same way here, but
+    need opposite fixes — telling someone to install a package they already
+    have sends them the wrong direction, so the known version conflicts are
+    named explicitly.
+    """
+    msg = str(err)
+    # chromadb pins opentelemetry only as '>=1.2.0', so pip happily leaves a
+    # stale exporter behind while the rest of the stack moves on. The grpc
+    # exporter imports private symbols from otlp-proto-common, so the two must
+    # be the same version or the import blows up inside chromadb's telemetry.
+    if "_create_exp_backoff_generator" in msg or (
+        "opentelemetry" in msg and backend == "chroma"
+    ):
+        return (
+            f"Vector backend 'chroma' failed to import because the installed OpenTelemetry "
+            f"packages are at mismatched versions (chromadb only requires '>=1.2.0', so pip "
+            f"can leave an old exporter in place):\n    {msg}\n"
+            f"Fix by aligning them, e.g.:\n"
+            f"    pip install -U 'opentelemetry-exporter-otlp-proto-grpc' "
+            f"'opentelemetry-exporter-otlp' 'opentelemetry-sdk' 'opentelemetry-api'\n"
+            f"(they must all report the same version). Or use backend='numpy' "
+            f"(built in, no dependencies)."
+        )
+    return (
+        f"Vector backend '{backend}' needs a package that isn't installed, or one that is "
+        f"installed at an incompatible version: {msg}\n"
+        f"Install the extras with: pip install 'ragarena[vectordb]'  — or use "
+        f"backend='numpy' (built in, no dependencies)."
+    )
 
 
 def list_backends() -> List[Dict[str, Any]]:

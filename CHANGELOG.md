@@ -3,6 +3,26 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.6.1] — 2026-08-28
+
+### Fixed
+- **Chroma backend gave a misleading "package isn't installed" error** when the
+  real problem was mismatched OpenTelemetry versions. chromadb requires
+  opentelemetry only as `>=1.2.0`, so pip can leave an old
+  `opentelemetry-exporter-otlp-proto-grpc` next to a newer
+  `opentelemetry-exporter-otlp-proto-common`; the grpc exporter imports private
+  symbols from common, so chromadb's telemetry import fails with
+  `cannot import name '_create_exp_backoff_generator'`. The error now says the
+  versions are mismatched and gives the exact command to align them, instead of
+  telling you to install something you already have.
+- **Warn before a Chroma-after-LanceDB process abort.** The two load conflicting
+  native Arrow/Rust libraries: once LanceDB has written a table, constructing a
+  Chroma client in the same process kills the interpreter outright — not a
+  catchable exception, the process simply dies. That is exactly the pattern of a
+  loop benchmarking every backend, so RagArena now warns and names the fix (run
+  Chroma first, or one process per backend). Verified: the reverse order and
+  bare imports in either order are both safe.
+
 ## [0.6.0] — 2026-08-28
 
 Every input format and every vector store verified against real servers running
