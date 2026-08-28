@@ -412,6 +412,28 @@ evaluate(questions=[...], documents=docs, judge_samples=3)
 # report includes score_stdev and all_scores per metric
 ```
 
+## 🗄️ Benchmark the vector DB itself
+
+The vector store is swappable, so you can hold the corpus, embeddings and strategy
+fixed and measure what the DB choice alone costs you:
+
+```python
+from ragarena import VectorIndex, evaluate, list_backends
+
+print(list_backends())   # which backends are installed & importable here
+
+for backend in ["numpy", "faiss", "qdrant", "lancedb", "chroma"]:
+    index = VectorIndex(embedding_model="openai/text-embedding-3-small", backend=backend)
+    index.add_documents(docs)
+    report = evaluate(questions=my_questions, index=index, strategy="hybrid")
+    print(backend, report.summary())
+```
+
+Built in and runnable with no server: `numpy` (default, exact cosine), `faiss`,
+`chroma`, `qdrant` (in-memory mode), `lancedb`. Server-backed stores plug into the same
+interface via `register_backend("weaviate", MyBackend)`. `RagArena backends` lists them
+from the CLI.
+
 ## ✅ Regression-check runs, gate CI on quality
 
 ```python

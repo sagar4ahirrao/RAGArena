@@ -47,6 +47,16 @@ def cmd_models(args):
     _print_models_table(models)
 
 
+def cmd_backends(_args):
+    from .backends import list_backends
+    print("\nVector-store backends (swap with VectorIndex(backend=...)):\n")
+    for b in list_backends():
+        mark = "ok " if b["available"] else "-- "
+        note = "" if b["available"] else f"  ({b['reason'][:60]})"
+        print(f"  {mark} {b['backend']:<12}{note}")
+    print()
+
+
 def cmd_strategies(_args):
     from .strategies import STRATEGIES
     print("\nAvailable RAG strategies:\n")
@@ -250,6 +260,10 @@ def build_parser():
     # strategies
     stp = sub.add_parser("strategies", help="list RAG strategies")
     stp.set_defaults(fn=cmd_strategies)
+
+    # backends
+    bp = sub.add_parser("backends", help="list vector-store backends and their availability")
+    bp.set_defaults(fn=cmd_backends)
 
     # run
     rp = sub.add_parser("run", help="run one evaluation")

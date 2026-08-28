@@ -98,12 +98,18 @@ class VectorIndex:
     """
 
     def __init__(self, embedding_model: str = "openai/text-embedding-3-small",
-                 chunker: Optional[TextChunker] = None):
+                 chunker: Optional[TextChunker] = None,
+                 backend: Any = "numpy", **backend_kwargs: Any):
+        from .backends import get_backend
+
         self.embedding_model = embedding_model
         self.chunker = chunker or TextChunker()
+        # `backend` swaps only where vectors are stored and searched — same
+        # embeddings, same strategies on top — so vector stores themselves can
+        # be benchmarked against each other. See ragarena.list_backends().
+        self.backend = get_backend(backend, **backend_kwargs)
         self.texts: List[str] = []
         self.metadatas: List[Dict[str, Any]] = []
-        self._matrix: Optional[np.ndarray] = None
         # embed-usage accounting from the last add/search (for cost rollup)
         self.last_embed_usage: List[Usage] = []
 
@@ -139,10 +145,7 @@ class VectorIndex:
         self.last_embed_usage = [resp.usage]
 
         vecs = np.asarray(resp.vectors, dtype=np.float32)
-        norms = np.linalg.norm(vecs, axis=1, keepdims=True)
-        vecs = vecs / np.maximum(norms, 1e-10)
-
-        self._matrix = vecs if self._matrix is None else np.vstack([self._matrix, vecs])
+        self.backend.add(vecs, new_texts, new_metas)
         self.texts.extend(new_texts)
         self.metadatas.extend(new_metas)
         return len(new_texts)
@@ -164,7 +167,7 @@ class VectorIndex:
     ) -> List[Tuple["Chunk", float]]:
         from .strategies import Chunk
 
-        if self._matrix is None or not self.texts:
+        if not self.texts:
             return []
         model = embed_model or self.embedding_model
         resp = embedding(model=model, input=[query])
@@ -180,24 +183,11 @@ class VectorIndex:
     ):
         from .strategies import Chunk
 
-        q = np.asarray(vector, dtype=np.float32).reshape(1, -1)
-        n = np.linalg.norm(q, axis=1, keepdims=True)
-        q = q / np.maximum(n, 1e-10)
-
-        sims = (self._matrix @ q.T).ravel()          # cosine similarity
-        order = np.argsort(-sims)
-
-        out: List[Tuple[Chunk, float]] = []
-        for idx in order:
-            meta = self.metadatas[int(idx)]
-            if filter and not all(meta.get(kk) == vv or
-                                  (isinstance(vv, list) and meta.get(kk) in vv)
-                                  for kk, vv in filter.items()):
-                continue
-            out.append((Chunk(text=self.texts[int(idx)], metadata=meta,
-                              score=float(sims[idx])), float(sims[idx])))
-            if len(out) >= k:
-                break
+        hits = self.backend.search(np.asarray(vector, dtype=np.float32), k=k, filter=filter)
+        out: List[Tuple[Chunk, float]] = [
+            (Chunk(text=text, metadata=meta, score=score), score)
+            for text, meta, score in hits
+        ]
         return out if with_scores else [c for c, _ in out]   # type: ignore[return-value]
 
     def __len__(self):

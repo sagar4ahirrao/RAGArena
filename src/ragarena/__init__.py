@@ -33,6 +33,7 @@ from .strategies import (
 from .graph import GraphIndex
 from .metrics import METRICS, DEFAULT_METRIC_SETS, MetricResult
 from .index import VectorIndex, TextChunker, chunk_text, MultimodalDocument
+from .backends import VectorBackend, BACKENDS, get_backend, list_backends, register_backend
 from .engine import (
     evaluate, compare, recommend_strategy, diff_runs, answer,
     EvaluationReport, ComparisonResult, RecommendationResult, RunDiff,
@@ -68,5 +69,7 @@ __all__ = [
     # metrics / index / engine
     "METRICS", "DEFAULT_METRIC_SETS", "MetricResult",
     "VectorIndex", "TextChunker", "chunk_text",
+    # vector-store backends
+    "VectorBackend", "BACKENDS", "get_backend", "list_backends", "register_backend",
     "EvaluationReport", "ComparisonResult", "RecommendationResult", "RunDiff",
 ]
