@@ -429,10 +429,31 @@ for backend in ["numpy", "faiss", "qdrant", "lancedb", "chroma"]:
     print(backend, report.summary())
 ```
 
-Built in and runnable with no server: `numpy` (default, exact cosine), `faiss`,
-`chroma`, `qdrant` (in-memory mode), `lancedb`. Server-backed stores plug into the same
-interface via `register_backend("weaviate", MyBackend)`. `RagArena backends` lists them
-from the CLI.
+**Nine backends, all verified against live servers.** Runnable with no server:
+`numpy` (default, exact cosine), `faiss`, `chroma`, `qdrant` (in-memory), `lancedb`.
+Server-backed: `qdrant`, `chroma`, `weaviate`, `elasticsearch`, `redis`, `pgvector` —
+pass connection details as kwargs:
+
+```python
+VectorIndex(embedding_model=..., backend="pgvector", dsn="postgresql://user:pw@host/db")
+VectorIndex(embedding_model=..., backend="weaviate", url="http://localhost:8080")
+VectorIndex(embedding_model=..., backend="elasticsearch", url="http://localhost:9200")
+VectorIndex(embedding_model=..., backend="redis", url="redis://localhost:6379")
+VectorIndex(embedding_model=..., backend="qdrant", url="http://localhost:6333")
+VectorIndex(embedding_model=..., backend="chroma", host="localhost", port=8000)
+```
+
+All nine return **identical similarity scores** on the same corpus, so a comparison
+measures the store, not an accidental difference in how it was configured.
+
+> **A note on Elasticsearch defaults.** Since 8.12 an indexed `dense_vector` defaults to
+> `int8_hnsw`, which quantizes vectors to 8 bits and shifts similarities by ~0.4% —
+> enough to reorder documents that are genuinely close, silently scoring a *different*
+> retrieval than the one you meant to measure. RagArena therefore defaults to exact
+> search (`index_type="flat"`); pass `index_type="hnsw"` or `"int8_hnsw"` explicitly when
+> you actually want to benchmark ANN behaviour at scale.
+
+`register_backend()` adds your own. `RagArena backends` lists them from the CLI.
 
 ## ✅ Regression-check runs, gate CI on quality
 

@@ -3,6 +3,57 @@
 All notable changes to RagArena are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [0.6.0] — 2026-08-28
+
+Every input format and every vector store verified against real servers running
+in Docker, not mocks.
+
+### Added
+- **Four server-backed vector stores**: `weaviate`, `elasticsearch`, `redis`
+  (RediSearch), and `pgvector` join the existing `numpy`/`faiss`/`chroma`/
+  `qdrant`/`lancedb` — nine backends total, each taking its connection
+  details as kwargs, e.g.
+  `VectorIndex(backend="pgvector", dsn="postgresql://...")`.
+- `chroma` and `qdrant` now also accept server connection details
+  (`host`/`port`, `url`) instead of only running in-process.
+- `list_backends()` reports `needs_server` and checks server-backed stores by
+  importing their client rather than dialing a default address, which
+  previously produced false negatives.
+
+### Verified
+- All nine backends return **identical similarity scores** on the same corpus
+  and embeddings, against live Qdrant, Chroma, Weaviate, Elasticsearch, Redis
+  Stack and pgvector containers — so a store-vs-store comparison measures the
+  store, not a configuration accident.
+- All 18 RAG strategies run end-to-end over a corpus pulled from a live
+  PostgreSQL server and indexed into live pgvector.
+- `from_sql()` against live **PostgreSQL, MySQL and pgvector-Postgres**
+  servers plus SQLite files.
+- `parse_file()` across **all 23 supported extensions** — including PDF,
+  which had never been exercised: txt, md, markdown, html, htm, xml, yaml,
+  yml, json, jsonl, csv, tsv, pdf, docx, pptx, xlsx, sql, db, sqlite,
+  sqlite3, png, jpg, jpeg.
+
+### Fixed
+- **Elasticsearch returned incorrectly ranked results by default.** Since 8.12
+  an indexed `dense_vector` defaults to `int8_hnsw`, scalar-quantizing to 8
+  bits and perturbing similarities by ~0.4%. On a corpus with two documents
+  0.19% apart this ranked them backwards, so an evaluation would score a
+  different retrieval than the one under test. The backend now defaults to
+  exact search (`index_type="flat"`, matching exact cosine to 6 decimal
+  places); pass `index_type="hnsw"`/`"int8_hnsw"` deliberately for ANN
+  benchmarking.
+- **Redis backend failed to import on redis-py >= 5.1**, which renamed
+  `redis.commands.search.indexDefinition` to `index_definition`. Both spellings
+  are now handled.
+- **`VectorIndex.add_documents()` silently indexed nothing** when given
+  documents with no extractable text — most commonly a folder of images,
+  which `parse_file()` returns with empty `text` and bytes in `images`. It
+  returned 0 with no signal, leaving an empty index and an evaluation that
+  retrieved nothing for no visible reason. It now warns, and points at
+  `to_multimodal()` + `strategy="multimodal"` when the documents look like
+  images.
+
 ## [0.5.0] — 2026-08-28
 
 Vector stores become swappable (and therefore benchmarkable), plus five real

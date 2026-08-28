@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragarena"
-version = "0.5.0"
+version = "0.6.0"
 description = "⚡ Evaluate & benchmark RAG strategies, LLMs and embedding models across every popular provider — 18 strategies (incl. graph + multimodal), 100+ models, built-in dashboard."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -64,7 +64,11 @@ sql = ["sqlalchemy>=2.0.0"]
 datasets = ["datasets>=2.19.0"]
 # swappable vector-store backends, for benchmarking the vector DB itself
 # (numpy is built in and needs nothing; faiss comes from the `retrieval` extra)
-vectordb = ["chromadb>=0.5.0", "qdrant-client>=1.9.0", "lancedb>=0.6.0"]
+vectordb = [
+    "chromadb>=0.5.0", "qdrant-client>=1.9.0", "lancedb>=0.6.0",
+    "weaviate-client>=4.7.0", "elasticsearch>=8.13.0", "redis>=5.0.0",
+    "psycopg2-binary>=2.9.0",
+]
 all = ["ragarena[retrieval,local,providers,ingest,datasets,sql,vectordb]"]
 dev = ["pytest>=7.4", "pytest-asyncio>=0.21", "black>=24.0", "ruff>=0.4", "mypy>=1.8"]
 

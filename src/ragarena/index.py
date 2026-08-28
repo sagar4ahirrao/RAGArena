@@ -139,6 +139,24 @@ class VectorIndex:
                 new_metas.append(m)
 
         if not new_texts:
+            # Documents came in but none produced indexable text — most often a
+            # folder of images (parse_file() returns them with empty `text` and
+            # the bytes in `images`). Silently returning 0 leaves an empty index
+            # and an evaluation that retrieves nothing, with no clue why.
+            if documents:
+                import warnings
+                image_like = sum(
+                    1 for raw in documents
+                    if isinstance(raw, dict) and raw.get("images") and not (raw.get("text") or "").strip()
+                )
+                hint = (" They look like image documents — convert them with "
+                        "ragarena.to_multimodal() and use strategy='multimodal' "
+                        "to retrieve over images." if image_like else "")
+                warnings.warn(
+                    f"add_documents(): {len(documents)} document(s) produced 0 indexable "
+                    f"text chunks, so nothing was added to the index.{hint}",
+                    UserWarning, stacklevel=2,
+                )
             return 0
 
         resp = embedding(model=self.embedding_model, input=new_texts)
